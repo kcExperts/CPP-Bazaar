@@ -12,7 +12,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 #     src/client.cpp
 # )
 
-add_executable(server src/server.cpp)
+set(SERVER
+    src/main.cpp
+    src/chatserver.h
+    src/chatserver.cpp
+)
+
+add_executable(server ${SERVER})
 add_executable(client src/client.cpp)
 target_link_libraries(server ws2_32)
 target_link_libraries(client ws2_32)

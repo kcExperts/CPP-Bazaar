@@ -55,16 +55,17 @@ int main(void)
     std::cout << "Succesfully Connected to Server" << std::endl;
 
     //Send and receive data
-    std::cout << std::endl << "Enter your message:" << std::endl;
-    std::cin.getline(buffer, 200); 
-    int byteCount = send(clientSocket, buffer, 200, 0); //No flags needed
-    if (byteCount == SOCKET_ERROR)
-    {
-        std::cout << "Error in sending Message: " << WSAGetLastError() << std::endl;
-        return 0;
+    for (int i = 0; i < 2; i++){
+        std::cout << std::endl << "Enter your message:" << std::endl;
+        std::cin.getline(buffer, 200); 
+        int byteCount = send(clientSocket, buffer, 200, 0); //No flags needed
+        if (byteCount == SOCKET_ERROR)
+        {
+            std::cout << "Error in sending Message: " << WSAGetLastError() << std::endl;
+            return 0;
+        }
+        std::cout << "Message Received" << std::endl;
     }
-    std::cout << "Message Received" << std::endl;
-
     //Disconnect
     std::cout << std::endl << "Closing Socket..." << std::endl;
     shutdown(clientSocket, SD_BOTH);
