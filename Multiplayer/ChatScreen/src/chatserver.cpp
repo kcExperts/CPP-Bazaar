@@ -21,7 +21,7 @@ bool ChatServer::create(std::string ip, int port, int maxConnections, int recvBu
 
     sockaddr_in service;
     service.sin_family = AF_INET;
-    InetPton(AF_INET, ip.c_str(), &service.sin_addr.S_un);
+    InetPtonA(AF_INET, ip.c_str(), &service.sin_addr.S_un); //Do not use InetPton as it defaults to InetPtonW meaning we need widestr
     service.sin_port = htons(port);
     if (bind(server, (SOCKADDR*)&service, sizeof(service)) == SOCKET_ERROR)
     {
@@ -61,18 +61,27 @@ void ChatServer::listenForClients()
             }
 
             //Store the client and assign a thread to it
-            serverConnections.push_back(potentialClient);
             int clientID = totalConnections;
-            std::thread(&ChatServer::recvFromClient, this, potentialClient, clientID).detach(); //Might need to use serverConnections here
+            clientConnectionFlags[clientID] = std::make_pair(
+                std::make_unique<std::atomic<bool>>(true), // Running flag
+                potentialClient                            // Socket
+            );
+            std::thread(&ChatServer::recvFromClient, this, clientID).detach();
             totalConnections++;
         }
         std::cout << "Server has stopped Listening for New Connections." << std::endl;
     });
 }
 
-void ChatServer::recvFromClient(SOCKET client, int clientID)
+void ChatServer::recvFromClient(int clientID)
 {   
+    // Retrieve socket and running flag
+    auto& entry = clientConnectionFlags[clientID];
+    auto& runningFlag = *entry.first; // Dereference unique_ptr to access atomic<bool>
+    SOCKET client = entry.second;
+
     std::cout << "Thread handling client: " << clientID << " started." << std::endl;
+
     char buffer[maxAllowedChars];
     int bytesReceived;
     while(true)
@@ -87,14 +96,14 @@ void ChatServer::recvFromClient(SOCKET client, int clientID)
 
         if (bytesReceived == 0)
         {
-            std::cerr << "Client " << clientID << " has disconnected" << std::endl;
+            std::cout << "Client " << clientID << " has disconnected" << std::endl;
             break;
         }
         std::cout << "Client " << clientID << ": " << buffer << std::endl;
     }
-    shutdown(client, SD_BOTH);
+    stopClient(clientID); //Stop thread
     closesocket(client);
-    std::cout << "Connection with client " << clientID << " terminated." << std::endl; 
+    clientConnectionFlags.erase(clientID);
 }
 
 void ChatServer::stopThread()
@@ -117,3 +126,64 @@ void ChatServer::shutItDown()
     closesocket(server);
     std::cout << "Server succesfully terminated." << std::endl;
 }
+
+void ChatServer::stopClient(int clientID)
+{
+    if (clientConnectionFlags.find(clientID) != clientConnectionFlags.end())
+    {
+        *clientConnectionFlags[clientID].first = false; // Set running flag to false
+
+        // Optionally close the socket to force termination
+        SOCKET clientSocket = clientConnectionFlags[clientID].second;
+        shutdown(clientSocket, SD_BOTH);
+        closesocket(clientSocket);
+
+        // Remove the client from the map
+        clientConnectionFlags.erase(clientID);
+    }
+}
+
+void ChatServer::sendToClient(int clientID, const std::string& message)
+{
+    if (clientConnectionFlags.find(clientID) != clientConnectionFlags.end())
+    {
+        SOCKET clientSocket = clientConnectionFlags[clientID].second;
+
+        // Send the message
+        int result = send(clientSocket, message.c_str(), static_cast<int>(message.size()), 0);
+        if (result == SOCKET_ERROR)
+        {
+            std::cerr << "Failed to send message to client " << clientID << ": " << WSAGetLastError() << std::endl;
+        }
+        else
+        {
+            std::cout << "Message sent to client " << clientID << ": " << message << std::endl;
+        }
+    }
+    else
+    {
+        std::cerr << "Client " << clientID << " not found or disconnected." << std::endl;
+    }
+}
+
+void ChatServer::broadcast(const std::string& message)
+{
+    for (auto& [clientID, pair] : clientConnectionFlags)
+    {
+        SOCKET clientSocket = pair.second;
+
+        // Send the message to the current client
+        int result = send(clientSocket, message.c_str(), static_cast<int>(message.size()), 0);
+        if (result == SOCKET_ERROR)
+        {
+            std::cerr << "Failed to send message to client " << clientID << ": " << WSAGetLastError() << std::endl;
+        }
+        else
+        {
+            std::cout << "Message broadcasted to client " << clientID << ": " << message << std::endl;
+        }
+    }
+}
+
+
+

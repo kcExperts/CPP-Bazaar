@@ -7,6 +7,8 @@
 #include <vector>
 #include <thread>
 #include <atomic>
+#include <unordered_map>
+#include <memory>
 
 //Requires WSA data to be initialized
 
@@ -18,14 +20,16 @@ class ChatServer
         int maxConnections;
         int maxAllowedChars;
         SOCKET server;
-        std::vector<SOCKET> serverConnections;
         std::atomic<bool> running;
         std::thread listenThread;
+        //Holds client ID and information for halting client specific thread
+        std::unordered_map<int, std::pair<std::unique_ptr<std::atomic<bool>>, SOCKET>> clientConnectionFlags;
+
 
         //Stops the listening thread
         void stopThread();
         //Receives data
-        void recvFromClient(SOCKET client, int clientID);
+        void recvFromClient(int clientID);
 
         int totalConnections;
     public:
@@ -37,8 +41,14 @@ class ChatServer
         void listenForClients();
         //Forces the server to stop accepting new clients
         void stopListening();
+        //Shutsdown a given clients thread
+        void stopClient(int clientID);
         //Shutsdown a given server
         void shutItDown();
+        //Send a message to the client
+        void sendToClient(int clientID, const std::string& message);
+        //Send to all clients
+        void broadcast(const std::string& message);
 
 
 

@@ -17,7 +17,7 @@ int main(void)
 
 
     ChatServer server;
-    if (!server.create("127.0.0.1", 55555, 2, 200))
+    if (!server.create("0.0.0.0", 20000, 2, 200))
     {
         std::cout << "Creation Failed" << std::endl;
         return 0;
@@ -26,6 +26,8 @@ int main(void)
 
     std::cout << "Waiting for Input." << std::endl;
     std::cin >> test;
+
+    //Make code
 
     server.shutItDown();
     return 0;
