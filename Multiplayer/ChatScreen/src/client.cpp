@@ -8,8 +8,8 @@
 int main(void)
 {
     //Variables
-    std::string serverIp = "127.0.0.1";
-    int port = 55555;
+    std::string serverIp = "70.26.45.194";
+    int port = 20000;
     int allowedConnections = 1;
     char buffer[200];
 
@@ -43,7 +43,7 @@ int main(void)
 
     sockaddr_in clientService;
     clientService.sin_family = AF_INET;
-    InetPton(AF_INET, serverIp.c_str(), &clientService.sin_addr.S_un);
+    InetPtonA(AF_INET, serverIp.c_str(), &clientService.sin_addr.S_un);
     clientService.sin_port = htons(port);
     if (connect(clientSocket, (SOCKADDR*)&clientService, sizeof(clientService)) == SOCKET_ERROR)
     {
