@@ -2,8 +2,14 @@
 
 ChatServer::ChatServer()
 {
-    running = false;
+    isListenRunning = false;
     totalConnections = 0;
+}
+
+ChatServer::~ChatServer()
+{
+    stopThread();
+    shutItDown();
 }
 
 bool ChatServer::create(std::string ip, int port, int maxConnections, int recvBuffer)
@@ -21,7 +27,7 @@ bool ChatServer::create(std::string ip, int port, int maxConnections, int recvBu
 
     sockaddr_in service;
     service.sin_family = AF_INET;
-    InetPtonA(AF_INET, ip.c_str(), &service.sin_addr.S_un); //Do not use InetPton as it defaults to InetPtonW meaning we need widestr
+    InetPtonA(AF_INET, ip.c_str(), &service.sin_addr.S_un); //Do not use InetPton as it defaults to InetPtonW (using widestr), instead use InetPtonA
     service.sin_port = htons(port);
     if (bind(server, (SOCKADDR*)&service, sizeof(service)) == SOCKET_ERROR)
     {
@@ -40,7 +46,7 @@ bool ChatServer::create(std::string ip, int port, int maxConnections, int recvBu
 
 void ChatServer::listenForClients()
 {
-    running = true;
+    isListenRunning = true;
     listenThread = std::thread([this]() {
         //Listen
         if (listen(server, maxConnections) == SOCKET_ERROR)
@@ -51,7 +57,7 @@ void ChatServer::listenForClients()
         }
 
         //Accept new client
-        while (running)
+        while (isListenRunning)
         {
             SOCKET potentialClient = accept(server, NULL, NULL);
             if (potentialClient == INVALID_SOCKET)
@@ -82,12 +88,12 @@ void ChatServer::recvFromClient(int clientID)
 
     std::cout << "Thread handling client: " << clientID << " started." << std::endl;
 
-    char buffer[maxAllowedChars];
+    ChatData data;
     int bytesReceived;
     while(true)
     {
         //Store message and check for errors
-        bytesReceived = recv(client, buffer, maxAllowedChars, 0);
+        bytesReceived = recv(client, (char*)&data, sizeof(data), 0);
         if (bytesReceived == SOCKET_ERROR)
         {
             std::cerr << "Client " << clientID << " received failed: " << WSAGetLastError() << std::endl;
@@ -99,7 +105,9 @@ void ChatServer::recvFromClient(int clientID)
             std::cout << "Client " << clientID << " has disconnected" << std::endl;
             break;
         }
-        std::cout << "Client " << clientID << ": " << buffer << std::endl;
+        std::cout << "Bytes: " << bytesReceived << std::endl;
+
+        std::cout << "Client " << clientID << ": " << data.getMessage() << std::endl;
     }
     stopClient(clientID); //Stop thread
     closesocket(client);
@@ -108,7 +116,7 @@ void ChatServer::recvFromClient(int clientID)
 
 void ChatServer::stopThread()
 {
-    running = false;
+    isListenRunning = false;
     //If the thread is still running, wait for it to finish before stopping
     if (listenThread.joinable()) 
         listenThread.join();

@@ -1,5 +1,7 @@
-#include <winsock2.h>
-#include <ws2tcpip.h> //For InetPton function
+#ifndef CHATSERVER_H
+#define CHATSERVER_H
+
+#include "precomp.h"
 #include <tchar.h> //For _T macro
 #include <stdio.h>
 #include <iostream>
@@ -9,6 +11,7 @@
 #include <atomic>
 #include <unordered_map>
 #include <memory>
+#include "chatdata.h"
 
 //Requires WSA data to be initialized
 
@@ -20,7 +23,7 @@ class ChatServer
         int maxConnections;
         int maxAllowedChars;
         SOCKET server;
-        std::atomic<bool> running;
+        std::atomic<bool> isListenRunning;
         std::thread listenThread;
         //Holds client ID and information for halting client specific thread
         std::unordered_map<int, std::pair<std::unique_ptr<std::atomic<bool>>, SOCKET>> clientConnectionFlags;
@@ -33,8 +36,8 @@ class ChatServer
 
         int totalConnections;
     public:
-        //Handles WSA initialization, sohuld only be called once
         ChatServer(); 
+        ~ChatServer();
         //Creates and binds a socket to the given ip and port, specifying the max connections and the size of the recvBuffer
         bool create(std::string ip, int port, int maxConnections, int recvBuffer);
         //Sets the server to listening mode, accepting new clients when possible
@@ -48,11 +51,8 @@ class ChatServer
         //Send a message to the client
         void sendToClient(int clientID, const std::string& message);
         //Send to all clients
-        void broadcast(const std::string& message);
-
-
-
-
-        
+        void broadcast(const std::string& message); 
 
 };
+
+#endif
