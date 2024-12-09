@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <iostream>
 #include <string>
+#include "chatdata.h"
+#include "chatclient.h"
 
 int main(void)
 {
@@ -11,8 +13,7 @@ int main(void)
     std::string serverIp = "70.26.45.194";
     int port = 20000;
     int allowedConnections = 1;
-    char buffer[200];
-
+    ChatData data;
     //Initialize WSA
 
     WSAData wsaData;
@@ -25,51 +26,20 @@ int main(void)
         return 0;
     }
 
-    std::cout << "WSA Initialized Succesfully" << std::endl;
+    ChatClient client;
+    client.connectToServer(serverIp, port);
 
-    //Create Socket
-
-    SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); //Create a socket that uses TCP protocol
-    if (clientSocket == INVALID_SOCKET)
-    {
-        std::cout << "Error: " << WSAGetLastError() << std::endl;
-        WSACleanup(); //Cleaup the winsock2 dll file
-        return 0;
-    }
-
-    std::cout << "Socket Created Succesfully" << std::endl;
-
-    //Connect to the server
-
-    sockaddr_in clientService;
-    clientService.sin_family = AF_INET;
-    InetPtonA(AF_INET, serverIp.c_str(), &clientService.sin_addr.S_un);
-    clientService.sin_port = htons(port);
-    if (connect(clientSocket, (SOCKADDR*)&clientService, sizeof(clientService)) == SOCKET_ERROR)
-    {
-        std::cout << "Failed to connect: " << WSAGetLastError() << std::endl;
-        closesocket(clientSocket);
-        WSACleanup();
-    }
-
-    std::cout << "Succesfully Connected to Server" << std::endl;
-
-    //Send and receive data
-    for (int i = 0; i < 2; i++){
+    for (int i = 0; i < 1; i++){
         std::cout << std::endl << "Enter your message:" << std::endl;
-        std::cin.getline(buffer, 200); 
-        int byteCount = send(clientSocket, buffer, 200, 0); //No flags needed
-        if (byteCount == SOCKET_ERROR)
-        {
-            std::cout << "Error in sending Message: " << WSAGetLastError() << std::endl;
-            return 0;
-        }
-        std::cout << "Message Received" << std::endl;
+        std::string message;
+        std::getline(std::cin, message);
+        char messageArray[MAX_MESSAGE_LENGTH];
+        std::strcpy(messageArray, message.c_str());
+        client.sendMessage(messageArray);
     }
     //Disconnect
     std::cout << std::endl << "Closing Socket..." << std::endl;
-    shutdown(clientSocket, SD_BOTH);
-    closesocket(clientSocket);
+    client.disconnect();
     WSACleanup();
 
     return 0;
