@@ -4,6 +4,7 @@
 /*
 TODO:
     - Fix sendMessage (its a pile of shit)
+    - CHANGE sentToServer to not be on a while loop
 */
 
 #include "precomp.h"
@@ -17,6 +18,7 @@ TODO:
 #include <unordered_map>
 #include <memory>
 #include "windowdata.h"
+#include <chrono>
 
 class WindowClient
 {
@@ -35,6 +37,7 @@ class WindowClient
         std::thread sendThread;
         std::atomic<bool> isSendRunning;
         std::atomic<bool> isMsgRdyToSend;
+
     public:
         WindowClient();
         ~WindowClient();
