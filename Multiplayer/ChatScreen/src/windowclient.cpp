@@ -115,7 +115,7 @@ void WindowClient::sendToServer()
     isSendRunning = true;
     while(isSendRunning)
     {
-        while(!isMsgRdyToSend) {} //Wait until message is ready to send
+        while(!isMsgRdyToSend) {std::this_thread::sleep_for(std::chrono::milliseconds(1));} //Wait until message is ready to send
         int byteCount = send(client, (char*)&dataToSend, sizeof(dataToSend), 0);
         if (byteCount == SOCKET_ERROR)
         {
