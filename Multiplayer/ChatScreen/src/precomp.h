@@ -4,7 +4,7 @@ Raylib and Windows share many common names for functions. Hence I put raylib ins
 
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
-#include <ws2tcpip.h>
+#include <ws2tcpip.h> //InetPtonA function
 
 #undef DrawText
 

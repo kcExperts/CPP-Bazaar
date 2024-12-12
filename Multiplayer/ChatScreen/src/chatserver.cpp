@@ -57,25 +57,43 @@ void ChatServer::listenForClients()
         }
 
         //Accept new client
-        while (isListenRunning)
-        {
-            SOCKET potentialClient = accept(server, NULL, NULL);
-            if (potentialClient == INVALID_SOCKET)
-            {
-                std::cerr << "Accept Failed: " << WSAGetLastError() << std::endl;
-                continue;
+        while (isListenRunning) {
+            fd_set readSet;
+            FD_ZERO(&readSet);
+            FD_SET(server, &readSet);
+
+            timeval timeout;
+            timeout.tv_sec = 1;  // Timeout in seconds
+            timeout.tv_usec = 0; // Timeout in microseconds
+
+            int activity = select(0, &readSet, NULL, NULL, &timeout);
+            if (activity == SOCKET_ERROR) {
+                std::cerr << "Select failed: " << WSAGetLastError() << std::endl;
+                break;
             }
 
-            //Store the client and assign a thread to it
-            int clientID = totalConnections;
-            clientConnectionFlags[clientID] = std::make_pair(
-                std::make_unique<std::atomic<bool>>(true), // Running flag
-                potentialClient                            // Socket
-            );
-            std::thread(&ChatServer::recvFromClient, this, clientID).detach();
-            totalConnections++;
+            if (activity > 0 && FD_ISSET(server, &readSet)) {
+                SOCKET potentialClient = accept(server, NULL, NULL);
+                if (potentialClient == INVALID_SOCKET) {
+                    std::cerr << "Accept Failed: " << WSAGetLastError() << std::endl;
+                    continue;
+                }
+
+                // Process new connection
+                int clientID = totalConnections;
+                clientConnectionFlags[clientID] = std::make_pair(
+                    std::make_unique<std::atomic<bool>>(true),
+                    potentialClient
+                );
+                std::thread(&ChatServer::recvFromClient, this, clientID).detach();
+                totalConnections++;
+            }
+            if (totalConnections == maxConnections)
+                stopListening();
         }
-        std::cout << "Server has stopped Listening for New Connections." << std::endl;
+
+        std::cout << "Server has stopped listening for new connections." << std::endl;
+
     });
 }
 
@@ -130,6 +148,10 @@ void ChatServer::stopListening()
 void ChatServer::shutItDown()
 {
     stopThread(); //PROBLEMS
+    for (auto& [clientID, pair] : clientConnectionFlags)
+    {
+        stopClient(clientID);
+    }
     shutdown(server, SD_BOTH);
     closesocket(server);
     std::cout << "Server succesfully terminated." << std::endl;
@@ -151,20 +173,24 @@ void ChatServer::stopClient(int clientID)
     }
 }
 
-void ChatServer::sendToClient(int clientID, const std::string& message)
+void ChatServer::sendToClient(int clientID, const char message[])
 {
+    int byteCount;
+    ChatData data;
+    data.setMessage(message);
     if (clientConnectionFlags.find(clientID) != clientConnectionFlags.end())
     {
         SOCKET clientSocket = clientConnectionFlags[clientID].second;
 
         // Send the message
-        int result = send(clientSocket, message.c_str(), static_cast<int>(message.size()), 0);
-        if (result == SOCKET_ERROR)
+        byteCount = send(clientSocket, (char*)&data, sizeof(data), 0);
+        if (byteCount == SOCKET_ERROR)
         {
             std::cerr << "Failed to send message to client " << clientID << ": " << WSAGetLastError() << std::endl;
         }
         else
         {
+            std::cout << byteCount << std::endl;
             std::cout << "Message sent to client " << clientID << ": " << message << std::endl;
         }
     }

@@ -25,9 +25,14 @@ int main(void)
     server.listenForClients();
 
     std::cout << "Waiting for Input." << std::endl;
-    std::cin >> test;
-
+    std::string message;
+    std::getline(std::cin, message);
+    char messageArray[MAX_MESSAGE_LENGTH];
+    std::strcpy(messageArray, message.c_str());
+    server.sendToClient(0, messageArray);
     //Make code
+    std::cout << "Waiting for Input2." << std::endl;
+    std::getline(std::cin, message);
 
     server.shutItDown();
     return 0;

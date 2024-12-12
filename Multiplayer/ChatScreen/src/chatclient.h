@@ -26,7 +26,7 @@ class ChatClient
         std::thread sendThread;
         ChatData dataToSend;
 
-        void recvFromServer();
+        //void recvFromServer();
         void sendToServer();
 
     public:
@@ -34,6 +34,7 @@ class ChatClient
         bool connectToServer(std::string ip, int port);
         bool sendMessage(char message[]);
         void disconnect();
+        void recvFromServer();
 };
 
 #endif

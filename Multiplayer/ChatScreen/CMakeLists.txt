@@ -25,32 +25,31 @@ set(CLIENT
 )
 
 set(PROGRAM
-    src/button.cpp
     src/chatclient.cpp
     src/chatdata.cpp
     src/chatscreen.cpp
-    src/chatserver.cpp
-    src/mouse.cpp
-    src/program.cpp
-    src/button.h
+    src/windowserver.cpp
+    src/windowclient.cpp
+    src/window.cpp
+    src/windowdata.cpp
     src/chatclient.h
     src/chatdata.h
     src/chatscreen.h
-    src/chatserver.h
-    src/mouse.h
-    src/program.h
+    src/windowserver.h
+    src/windowclient.h
     src/constants.h
     src/screenSizeTransfer.h
-    src/precomp.h
-    
-    src/programMain.cpp
+    src/window.h
+    src/windowdata.h
 )
 
+add_executable(windowS src/windowmainserver.cpp ${PROGRAM})
+add_executable(windowC src/windowmainclient.cpp ${PROGRAM})
+target_link_libraries(windowS ws2_32 raylib)
+target_link_libraries(windowC ws2_32 raylib)
+target_precompile_headers(windowS PRIVATE "src/precomp.h")
+target_precompile_headers(windowC PRIVATE "src/precomp.h")
 # add_executable(server ${SERVER})
 # add_executable(client ${CLIENT})
-add_executable(main ${PROGRAM})
-# Precompile the header for 'main' target
-target_precompile_headers(main PRIVATE "src/precomp.h")
 # target_link_libraries(server ws2_32 raylib)
 # target_link_libraries(client ws2_32 raylib)
-target_link_libraries(main raylib ws2_32)
