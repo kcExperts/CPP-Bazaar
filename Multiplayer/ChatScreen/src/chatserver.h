@@ -49,7 +49,7 @@ class ChatServer
         //Shutsdown a given server
         void shutItDown();
         //Send a message to the client
-        void sendToClient(int clientID, const std::string& message);
+        void sendToClient(int clientID, const char message[]);
         //Send to all clients
         void broadcast(const std::string& message); 
 

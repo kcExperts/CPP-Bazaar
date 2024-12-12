@@ -5,7 +5,7 @@
 
 constexpr size_t MAX_USERNAME_LENGTH = 10;
 constexpr size_t MAX_MESSAGE_LENGTH = 200;
-constexpr size_t MAX_MESSAGE_HISTORY_STORAGE_SIZE = 100;
+constexpr size_t MAX_MESSAGE_HISTORY_STORAGE_SIZE = 5;
 
 enum ChatEvents
 {

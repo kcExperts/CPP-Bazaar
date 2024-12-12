@@ -17,8 +17,8 @@ class ChatData
     private:
         int usernameLength;
         int messageLength;
-        char username[MAX_USERNAME_LENGTH + 1] = "\0";
-        char message[MAX_MESSAGE_LENGTH + 1] = "\0";
+        char username[MAX_USERNAME_LENGTH + 1] = "";
+        char message[MAX_MESSAGE_LENGTH + 1] = "";
     public:
         ChatData();
         void changeMsgLen(int msglen);

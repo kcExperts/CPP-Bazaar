@@ -17,7 +17,7 @@ class ChatScreen
     public:
         ChatScreen();
         void addMessage(const char* message);
-        void draw();
+        const char* getMessage(int index) const;
 };
 
 #endif

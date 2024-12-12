@@ -37,6 +37,13 @@ int main(void)
         std::strcpy(messageArray, message.c_str());
         client.sendMessage(messageArray);
     }
+    std::cout << std::endl << "Wating for Server to Send Message" << std::endl;
+    client.recvFromServer();
+    std::string message2;
+    std::getline(std::cin, message2);
+    
+
+
     //Disconnect
     std::cout << std::endl << "Closing Socket..." << std::endl;
     client.disconnect();
