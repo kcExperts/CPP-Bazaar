@@ -11,6 +11,7 @@
 /*
 TODO: Make window dragging not sticky (would have to cancel drag vector in certain direction)
         - Finish updateNetworkLogic
+    - In client, there is a thread problem
 */
 
 #define CHATWINDOW_HEIGHT 200
