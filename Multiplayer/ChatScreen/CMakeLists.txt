@@ -42,7 +42,29 @@ set(PROGRAM
     src/window.h
     src/windowdata.h
 )
+#-------------------------------------------------------------------------------
+#Put this shit here before idk what this does
+add_compile_options(
+    -static 
+    -static-libgcc 
+    -static-libstdc++ 
+    )
+add_link_options(
+    -static 
+    )
 
+    
+# FetchContent to download raylib if not available
+include(FetchContent)
+
+FetchContent_Declare(
+    raylib
+    GIT_REPOSITORY https://github.com/raysan5/raylib.git
+    GIT_TAG 4.5.0  # Replace with the desired raylib version
+)
+
+FetchContent_MakeAvailable(raylib)
+#-------------------------------------------------------------------------------
 add_executable(windowS src/windowmainserver.cpp ${PROGRAM})
 add_executable(windowC src/windowmainclient.cpp ${PROGRAM})
 target_link_libraries(windowS ws2_32 raylib)

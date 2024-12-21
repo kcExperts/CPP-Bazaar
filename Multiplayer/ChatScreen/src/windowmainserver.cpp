@@ -7,7 +7,6 @@ int main()
     rl::InitWindow(1280, 720, "SERVER");
     rl::SetTargetFPS(600);
 
-    std::cout << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
     Window window;
     window.initServer();
 
