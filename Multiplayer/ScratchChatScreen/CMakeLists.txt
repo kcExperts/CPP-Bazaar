@@ -6,4 +6,22 @@ set(CMAKE_CXX_STANDARD 17) #It is what I have
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_executable(main src/main.cpp)
+
+SET(PRECOMPILE
+    src/precomp.h
+)
+
+SET(HEADERS
+    src/ChatModule.h
+    src/ChatModuleDefines.h
+    src/ChatObject.h
+)
+
+SET(CODEFILES
+    src/ChatModule.cpp
+    src/ChatObject.cpp
+)
+
+add_executable(main src/main.cpp ${PRECOMPILE} ${HEADERS} ${CODEFILES})
+target_link_libraries(main ws2_32 raylib)
+target_precompile_headers(main PRIVATE ${PRECOMPILE})

@@ -1,11 +1,33 @@
+#include "precomp.h"
+#include "ChatModule.h"
+#include <filesystem>
 #include <iostream>
-using namespace std;
  
 int main() {
-    if (__cplusplus == 202002L) std::cout << "C++20\n";
-    else if (__cplusplus == 201703L) std::cout << "C++17\n";
-    else if (__cplusplus == 201402L) std::cout << "C++14\n";
-    else if (__cplusplus == 201103L) std::cout << "C++11\n";
-    else if (__cplusplus == 199711L) std::cout << "C++98\n";
-    else std::cout << "pre-standard C++\n";
+    rl::InitWindow(sst::baseX, sst::baseY, "Hello World!");
+    rl::SetTargetFPS(60);
+    ChatModule test;
+    
+    if (!rl::IsWindowReady())
+        return 0;
+    
+    while(!rl::WindowShouldClose())
+    {
+        test.UpdateState();
+        if(rl::IsKeyPressed(rl::KEY_A))
+            rl::MinimizeWindow();
+
+        if (rl::IsKeyPressed(rl::KEY_B))
+            rl::RestoreWindow();
+
+        rl::BeginDrawing();
+            rl::ClearBackground(rl::RAYWHITE);
+
+            test.Draw();
+
+        rl::EndDrawing();
+    }
+
+    rl::CloseWindow();
+
 }
