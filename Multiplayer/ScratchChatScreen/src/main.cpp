@@ -5,7 +5,7 @@
  
 int main() {
     rl::InitWindow(sst::baseX, sst::baseY, "Hello World!");
-    rl::SetTargetFPS(60);
+    rl::SetTargetFPS(120);
     ChatModule test;
     
     if (!rl::IsWindowReady())
@@ -13,17 +13,16 @@ int main() {
     
     while(!rl::WindowShouldClose())
     {
-        test.UpdateState();
-        if(rl::IsKeyPressed(rl::KEY_A))
+        test.UpdateState(); //Must always be before drawing
+        if(rl::IsKeyPressed(rl::KEY_GRAVE))
             rl::MinimizeWindow();
-
-        if (rl::IsKeyPressed(rl::KEY_B))
-            rl::RestoreWindow();
 
         rl::BeginDrawing();
             rl::ClearBackground(rl::RAYWHITE);
 
             test.Draw();
+
+            rl::DrawText(rl::TextFormat("FPS: %i", rl::GetFPS()), 100, 100, 10, rl::RED);
 
         rl::EndDrawing();
     }

@@ -244,7 +244,7 @@ void Window::initServer()
 {
     isServer = true;
     if (wsaerr != 0) return; //WSAData not initialized correctly
-    if (!server.create("0.0.0.0", 20000, 1, chat))
+    if (!server.create("127.0.0.1", 20000, 1, chat))
     {
         std::cout << "Creation Failed" << std::endl;
         return;
@@ -256,7 +256,7 @@ void Window::initClient()
 {
     isServer = false;
     if (wsaerr != 0) return;
-    if(!client.connectToServer("70.26.45.194", 20000))
+    if(!client.connectToServer("127.0.0.1", 20000))
     {
         std::cout << "Connection Failed" << std::endl;
         return;
