@@ -82,8 +82,12 @@ class ChatModule
         void DrawTextLeftOfRect(const ChatModule_TextInfo& info, int padding) const;
         void DrawTextRightOfRect(const ChatModule_TextInfo& info, int padding) const;
         void DrawTextOnPoint(const ChatModule_TextInfo &info) const;
-        void DrawTextLeftOfPoint(const ChatModule_TextInfo &info, int padding) const;
-        void GetRectFromPoint(const ChatModule_TextInfo &info, rl::Rectangle& rec);
+        void DrawTextLeftOfPoint(const ChatModule_TextInfo &info) const;
+        void GetRectFromPoint_Center(const ChatModule_TextInfo &info, rl::Rectangle& rec);
+        void GetRectFromPoint_Top(const ChatModule_TextInfo &info, rl::Rectangle& rec);
+        void GetRectFromPoint_Left(const ChatModule_TextInfo &info, rl::Rectangle& rec);
+        void GetRectFromPoint_Right(const ChatModule_TextInfo &info, rl::Rectangle& rec);
+        void GetRectFromPoint_Bottom(const ChatModule_TextInfo &info, rl::Rectangle& rec);
 
         //Texture Specific
         void InitLoadingImage();
@@ -92,7 +96,7 @@ class ChatModule
         void ButtonInfoInit();
         void CheckButtonCollision();
         void ModifyTextBox();
-        void DrawTextBox(const ChatModule_TextInfo &info, ChatModule_EditingTextBox textboxType) const;
+        void DrawTextBox(const ChatModule_TextInfo &info, ChatModule_EditingTextBox textboxType, bool isCentered) const;
 };
 
 

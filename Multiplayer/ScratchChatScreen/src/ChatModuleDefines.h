@@ -17,8 +17,8 @@
 #define CHATWINDOW_USERNAMEBOX_HEIGHT STANDARD_FONT_SIZE + 6
 
 //Chatwindow text offset
-#define CHATWINDOW_OFFSET_X (ChatWindow.x - CHATWINDOW_START_X)
-#define CHATWINDOW_OFFSET_Y (ChatWindow.y - CHATWINDOW_START_Y)
+#define CHATWINDOW_OFFSET_X ChatWindow.x
+#define CHATWINDOW_OFFSET_Y ChatWindow.y
 
 //Chat length
 constexpr size_t MAX_USERNAME_LENGTH = 10;
@@ -28,9 +28,12 @@ constexpr size_t MAX_PORTNUMBER_LENGTH = 5;
 constexpr size_t MAX_IP_LENGTH = 16;
 
 //Other
-#define CHATWINDOW_TOPRIGHT_X ChatWindow.x + ChatWindow.width - rl::MeasureText(buttonInfo.text.c_str(), buttonInfo.font)
-#define CHATWINDOW_TOPRIGHT_Y ChatWindow.y + buttonInfo.font/2
-#define CHATWINDOW_BOTTOMRIGHT_Y ChatWindow.y + ChatWindow.height - buttonInfo.font/2
+#define CHATWINDOW_RIGHT_X ChatWindow.width - PADDING
+#define CHATWINDOW_TOP_Y 0
+#define CHATWINDOW_TEXT_TOP_Y 0 + (float)buttonInfo.font / 2
+#define CHATWINDOW_TEXT_BOTTOMRIGHT_Y CHATWINDOW_HEIGHT + PADDING - (float)buttonInfo.font / 2
+#define CHATWINDOW_TEXT_RIGHT_X ChatWindow.width - PADDING
+#define PADDING 2
 
 
 //Lists all possible text edit fields
@@ -41,6 +44,15 @@ enum ChatModule_EditingTextBox
     Port,
     Ip,
     Message
+};
+
+enum ChatModule_TextOrientation
+{
+    Center,
+    Top,
+    Left,
+    Right,
+    Bottom
 };
 
 struct ChatModule_TextBox
@@ -61,6 +73,7 @@ struct ChatModule_TextInfo
     rl::Color selectColor;
     bool isMouseHovering = false;
     rl::Vector2 textLocationPoint;
+    ChatModule_TextOrientation locationOrientation;
     //Only used for text boxes
     ChatModule_TextBox textBox;
     bool hasTextBox = false;
