@@ -6,14 +6,19 @@ A modular chatscreen implemented using winsock2. Uses threads.
 
 ## Version History
 
-V1:
-    - Added Select and Join Menu
-    - Added utility function to coding easier
-    - Added support for typing
+V0.2:  
+    - Added better text writing.  
+    - Rewrote position code. Drawing now applies a linear transformation to match position to actual on screen position.  
+    + Next Patch should include some basic network code.
 
-V0: 
-    - Created basic window that supports proper drag.
-    - Created loading screen with rotating texture.
+V0.1:  
+    - Added Select and Join Menu.  
+    - Added utility function to coding easier.  
+    - Added support for typing.
+
+V0.0:  
+    - Created basic window that supports proper drag.  
+    - Created loading screen with rotating texture.  
     - Framework created.
 
 ## TODO
@@ -21,7 +26,7 @@ V0:
 - Fix
     - [ ] Figure out what is going on with centering of textures and destination rectangles
     - [ ] Ensure animations are not tied to FPS
-    - [ ] Fix Dragging Breaking Everything
+    - [x] Fix Dragging Breaking Everything
 
 - GUI
     - [x] Create window
@@ -34,7 +39,7 @@ V0:
     - [ ] Menus
         - [x] StartMenu, should be able to set username here
         - [ ] Manual Join Menu
-        - [ ] Manual Host Menu
+        - [x] Manual Host Menu
         - [ ] Option for menu joining and host to be automated outside of program
     - [ ] Chat Window
         - [ ] Support different lobby sizes

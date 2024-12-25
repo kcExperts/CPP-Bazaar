@@ -4,7 +4,7 @@ ChatModule::ChatModule()
 {
     ChatWindow = rl::Rectangle{CHATWINDOW_START_X, CHATWINDOW_START_Y, CHATWINDOW_WIDTH, CHATWINDOW_HEIGHT};
     WindowColor = rl::BLACK;
-    currentMenu = Init;
+    currentMenu = Host;
     InitLoadingImage();
     areButtonsInitialized = false;
     usernameLength = 0;
@@ -51,12 +51,14 @@ void ChatModule::InitializeHost()
     areButtonsInitialized = true;
     ButtonInfoInit();
     buttonInfo.hasTextBox = false;
+    buttonInfo.locationOrientation = Left;
     buttonInfo.text = "Back";
-    buttonInfo.textLocationPoint = {CHATWINDOW_TOPRIGHT_X, CHATWINDOW_TOPRIGHT_Y + 2};
+    buttonInfo.textLocationPoint = {CHATWINDOW_TEXT_RIGHT_X, CHATWINDOW_TEXT_TOP_Y};
     buttons["Back"] = buttonInfo;
     buttonInfo.text = "Create";
-    buttonInfo.textLocationPoint.y = CHATWINDOW_BOTTOMRIGHT_Y - 5;
+    buttonInfo.textLocationPoint.y = CHATWINDOW_TEXT_BOTTOMRIGHT_Y;
     buttons["Create"] = buttonInfo;
+    buttonInfo.locationOrientation = Center;
     buttonInfo.hasTextBox = true;
     rl::Rectangle rec = CenterRect(CHATWINDOW_USERNAMEBOX_WIDTH, CHATWINDOW_USERNAMEBOX_HEIGHT);
     rec.y -= 20;
@@ -75,9 +77,10 @@ void ChatModule::DrawHost() const
 {
     DrawTextAboveRect(buttons.at("Userbox"), 10);
     DrawTextAboveRect(buttons.at("Portbox"), 10);
-    DrawTextOnPoint(buttons.at("Back"));
-    DrawTextOnPoint(buttons.at("Create"));
-    DrawTextBox(buttons.at("Userbox"), Username);
+    DrawTextLeftOfPoint(buttons.at("Back"));
+    DrawTextLeftOfPoint(buttons.at("Create"));
+    DrawTextBox(buttons.at("Userbox"), Username, true);
+    DrawTextBox(buttons.at("Portbox"), Port, true);
 }
 
 void ChatModule::UpdateHost()
@@ -156,7 +159,7 @@ void ChatModule::UpdateSelect()
 void ChatModule::DrawLoading() const
 {
     // What the fuck is going on with the line below
-    rl::Rectangle loadingDest = {GetCenterX() + T_loading.textureCenter.x - 100 / 2, GetCenterY() + T_loading.textureCenter.y - 100 / 2, 100, 100};
+    rl::Rectangle loadingDest = {GetCenterX() + T_loading.textureCenter.x - 100 / 2 + ChatWindow.x, GetCenterY() + T_loading.textureCenter.y - 100 / 2 + ChatWindow.y, 100, 100};
     rl::DrawTexturePro(T_loading.texture, T_loading.sourceRec, loadingDest, T_loading.textureCenter, T_loading.currentAngle, rl::WHITE);
 }
 
@@ -260,12 +263,12 @@ void ChatModule::Drag()
 
 float ChatModule::GetCenterX() const
 {
-    return ChatWindow.x + CHATWINDOW_WIDTH / 2;
+    return CHATWINDOW_WIDTH / 2;
 }
 
 float ChatModule::GetCenterY() const
 {
-    return ChatWindow.y + CHATWINDOW_HEIGHT / 2;
+    return CHATWINDOW_HEIGHT / 2;
 }
 
 const rl::Rectangle ChatModule::CenterRect(int width, int height) const
@@ -344,23 +347,14 @@ void ChatModule::DrawTextOnPoint(const ChatModule_TextInfo &info) const
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
 }
 
-void ChatModule::DrawTextLeftOfPoint(const ChatModule_TextInfo &info, int padding) const
+void ChatModule::DrawTextLeftOfPoint(const ChatModule_TextInfo &info) const
 {
     rl::DrawText(
         info.text.c_str(),
-        info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) + CHATWINDOW_OFFSET_X - padding,
-        info.textLocationPoint.y - info.font / 2 + CHATWINDOW_OFFSET_Y + info.font,
+        info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) + CHATWINDOW_OFFSET_X,
+        info.textLocationPoint.y - (info.font / 2) + CHATWINDOW_OFFSET_Y,
         info.font,
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
-}
-
-//Assuming DrawTextOnPoint is used
-void ChatModule::GetRectFromPoint(const ChatModule_TextInfo &info, rl::Rectangle& rec)
-{
-    rec.x = info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X;
-    rec.y = info.textLocationPoint.y - info.font / 2 + CHATWINDOW_OFFSET_Y;
-    rec.width = (float)rl::MeasureText(info.text.c_str(), info.font);
-    rec.height = (float)info.font;
 }
 
 void ChatModule::InitLoadingImage()
@@ -389,6 +383,7 @@ void ChatModule::ButtonInfoInit()
     buttonInfo.isMouseHovering = false;
     buttonInfo.textBox.type = None;
     buttonInfo.textBox.isEditing = false;
+    buttonInfo.locationOrientation = Center;
 }
 
 void ChatModule::CheckButtonCollision()
@@ -410,7 +405,25 @@ void ChatModule::CheckButtonCollision()
                 button.second.isMouseHovering = false;
             }
         } else {
-            GetRectFromPoint(button.second, buttonRect);
+            //Check where text is being drawn based off button to get correct hitbox detection
+            switch(button.second.locationOrientation)
+            {
+                case Center:
+                    GetRectFromPoint_Center(button.second, buttonRect);
+                    break;
+                case Top:
+                    GetRectFromPoint_Top(button.second, buttonRect);
+                    break;
+                case Left:
+                    GetRectFromPoint_Left(button.second, buttonRect);
+                    break;
+                case Right:
+                    GetRectFromPoint_Right(button.second, buttonRect);
+                    break;
+                case Bottom:
+                    GetRectFromPoint_Bottom(button.second, buttonRect);
+                    break;
+            }
             rl::CheckCollisionPointRec(mousePos, buttonRect) ? button.second.isMouseHovering = true : button.second.isMouseHovering = false;
         }
     }
@@ -418,6 +431,7 @@ void ChatModule::CheckButtonCollision()
 
 void ChatModule::ModifyTextBox()
 {
+    isTyping ? rl::SetMouseCursor(rl::MOUSE_CURSOR_IBEAM) : rl::SetMouseCursor(rl::MOUSE_CURSOR_DEFAULT);
     for (auto& button : buttons)
     {
         if (!button.second.hasTextBox)
@@ -433,7 +447,7 @@ void ChatModule::ModifyTextBox()
             case Username:
                 while (key > 0)
                 {
-                    if ((key >- 32) && (key <= 125) && usernameLength < MAX_USERNAME_LENGTH)
+                    if ((key >= 32) && (key <= 125) && usernameLength < MAX_USERNAME_LENGTH)
                     {
                         username[usernameLength] = (char)key;
                         username[usernameLength + 1] = '\0';
@@ -449,7 +463,22 @@ void ChatModule::ModifyTextBox()
                 }
                 break;
             case Port:
-
+                while (key > 0)
+                {
+                    if ((((key >= 48) && (key <= 57)) || key == 46) && portLength < MAX_PORTNUMBER_LENGTH)
+                    {
+                        port[portLength] = (char)key;
+                        port[portLength + 1] = '\0';
+                        portLength++;
+                    }
+                    key = rl::GetCharPressed();
+                }
+                if (rl::IsKeyPressed(rl::KEY_BACKSPACE))
+                {
+                    portLength--;
+                    if (portLength < 0) portLength = 0;
+                    port[portLength] = '\0';
+                }
                 break;
             case Ip:
 
@@ -462,20 +491,43 @@ void ChatModule::ModifyTextBox()
     }
 }
 
-void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_EditingTextBox textboxType) const
+void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_EditingTextBox textboxType, bool isCentered) const
 {
     switch(textboxType)
     {
         case None:
             break;
         case Username:
-            rl::DrawText(
-                username,
-                info.textBox.location.x + CHATWINDOW_OFFSET_X,
-                info.textBox.location.y + CHATWINDOW_OFFSET_Y,
-                info.font, info.nonSelectColor);
+            if (isCentered)
+            {
+                rl::DrawText(
+                    username,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(username, info.font)/2,
+                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
+                    info.font, info.nonSelectColor);
+            } else {
+                rl::DrawText(
+                    username,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X,
+                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
+                    info.font, info.nonSelectColor);
+            }
             break;
         case Port:
+            if (isCentered)
+            {
+                rl::DrawText(
+                    port,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(port, info.font)/2,
+                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
+                    info.font, info.nonSelectColor);
+            } else {
+                rl::DrawText(
+                    port,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X,
+                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
+                    info.font, info.nonSelectColor);
+            }
             break;
         case Ip:
             break;
@@ -483,4 +535,36 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
             break;
 
     }
+}
+
+//Assuming DrawTextOnPoint is used
+void ChatModule::GetRectFromPoint_Center(const ChatModule_TextInfo &info, rl::Rectangle& rec)
+{
+    rec.x = info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X;
+    rec.y = info.textLocationPoint.y - info.font / 2 + CHATWINDOW_OFFSET_Y;
+    rec.width = (float)rl::MeasureText(info.text.c_str(), info.font);
+    rec.height = (float)info.font;
+}
+
+void ChatModule::GetRectFromPoint_Top(const ChatModule_TextInfo &info, rl::Rectangle& rec)
+{
+    
+}
+
+void ChatModule::GetRectFromPoint_Left(const ChatModule_TextInfo &info, rl::Rectangle& rec)
+{
+    rec.x = info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) + CHATWINDOW_OFFSET_X;
+    rec.y = info.textLocationPoint.y - info.font / 2 + CHATWINDOW_OFFSET_Y;
+    rec.width = (float)rl::MeasureText(info.text.c_str(), info.font);
+    rec.height = (float)info.font;
+}
+
+void ChatModule::GetRectFromPoint_Right(const ChatModule_TextInfo &info, rl::Rectangle& rec)
+{
+
+}
+
+void ChatModule::GetRectFromPoint_Bottom(const ChatModule_TextInfo &info, rl::Rectangle& rec)
+{
+
 }
