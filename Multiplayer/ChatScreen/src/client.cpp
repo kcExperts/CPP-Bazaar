@@ -10,7 +10,7 @@
 int main(void)
 {
     //Variables
-    std::string serverIp = "70.26.45.194";
+    std::string serverIp = "127.0.0.1";
     int port = 20000;
     int allowedConnections = 1;
     ChatData data;
