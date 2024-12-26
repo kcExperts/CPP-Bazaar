@@ -4,7 +4,7 @@ ChatModule::ChatModule()
 {
     ChatWindow = rl::Rectangle{CHATWINDOW_START_X, CHATWINDOW_START_Y, CHATWINDOW_WIDTH, CHATWINDOW_HEIGHT};
     WindowColor = rl::BLACK;
-    currentMenu = Host;
+    currentMenu = Init;
     InitLoadingImage();
     areButtonsInitialized = false;
     usernameLength = 0;
