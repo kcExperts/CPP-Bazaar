@@ -68,7 +68,7 @@ auto listeningErrorDetection_f = listeningErrorDetection_p.get_future(); //Will 
 //Handling data thread
 void Network_HandleData();
 std::thread handleDataThread;
-bool canHandleData;
+std::atomic<bool> canHandleData;
 std::mutex handlingData_mutex;
 std::condition_variable handlingDataCondition;
 
@@ -133,6 +133,13 @@ int main(void)
     return 0;
 }
 
+struct ChatState {
+    std::mutex mtx; //Anytime I do anything, lock
+    bool isServerGay;
+    int numCLients;
+    std::vector<Client> clients;
+};
+
 /*
 Checks every socket to see if a message has been sent, halting to process the data once received.
 It is assumed that receiving takes no longer than 10 millisecond.
@@ -150,11 +157,9 @@ void Network_Server_Receive()
 
     while (isReceiving)
     {
-        if (isServerEmpty) //Wait for server to be non-empty before checking
-        {
-            std::unique_lock lock(receiving_mutex);
-            receivingCondition.wait(lock, []{return !isServerEmpty;});
-        }
+        std::unique_lock lock(receiving_mutex);
+        receivingCondition.wait(lock, []{return !isServerEmpty;});
+        
         for (int i = 0; i < serverClients.size(); i++)
         {
             size_t serverClientsSize = serverClients.size(); //Used for communication with Listen Thread
@@ -171,7 +176,10 @@ void Network_Server_Receive()
                 closesocket(client);
                 serverClients.erase(serverClients.begin() + i);
                 i--; //Readjust to ensure next socket is not skipped
-                if (serverClientsSize >= MAX_CONNECTIONS) isServerFull = false; //Tell listening thread to continue
+                { //Nerw scope, lock obliterated when out of scope, effectively unlocking mtx
+                    std::lock_guard lock(capacity_mutex); //Avoids the assignment below from being discarded
+                    if (serverClientsSize >= MAX_CONNECTIONS) isServerFull = false; //Tell listening thread to continue
+                }
                 continue;
             }
             if (bytesReceived == SOCKET_ERROR) //Receiving failed for some reason
@@ -196,6 +204,7 @@ void Network_HandleData()
     {
         std::unique_lock lock(handlingData_mutex);
         handlingDataCondition.wait(lock, []{return !isDataProcessed;});
+        if (!canHandleData) break;
         data = dataToHandle_f.get();
         std::cout << data.getMessage() << std::endl;
     }
@@ -206,9 +215,9 @@ void Network_Server_Listen()
     //Set the server socket to non-blocking
     u_long mode = 1; //Non-blocking mode
     ioctlsocket(server, FIONBIO, &mode);
-
-    isListening = true;
     userConnectWorking = true;
+
+    isListening = true; 
     if (listen(server, MAX_CONNECTIONS) == SOCKET_ERROR)
     {
         listeningErrorDetection_p.set_value(ListeningInitialization);
@@ -220,19 +229,23 @@ void Network_Server_Listen()
         SOCKET newClient = accept(server, NULL, NULL); //Checks a queue to see if any clients are present
         if (newClient == INVALID_SOCKET)
         {
-            //Halt thread until main program detects that someone failed to connect, but do not stop listening
-            listeningErrorDetection_p.set_value(UserFailedToConnect);
-            userConnectWorking = false;
-            //Wait until thread allows listening to continue (during listening halting, will need to be updated)
-            std::unique_lock lock(listening_mutex);
-            //Wait until cv is notified and that userConnectWorking is true
-            listeningCondition.wait(lock, []{return userConnectWorking;}); 
+            if (WSAGetLastError() != WSAEWOULDBLOCK)
+            {
+                //Halt thread until main program detects that someone failed to connect, but do not stop listening
+                listeningErrorDetection_p.set_value(UserFailedToConnect);
+                userConnectWorking = false;
+                //Wait until thread allows listening to continue (during listening halting, will need to be updated)
+                std::unique_lock lock(listening_mutex);
+                //Wait until cv is notified and that userConnectWorking is true
+                listeningCondition.wait(lock, []{return userConnectWorking;}); 
+            }
             continue; //Wait for a new client to appear
         }
         //Accepts new client if possible
         if (serverClients.size() < MAX_CONNECTIONS)
         {
             ioctlsocket(newClient, FIONBIO, &mode); //Sets newClient to be non-blocking
+            
             serverClients.push_back(newClient);
         } else
         {
@@ -241,7 +254,7 @@ void Network_Server_Listen()
             std::unique_lock lock(capacity_mutex);
             listeningCondition.wait(lock, []{return !isServerFull;});
         }
-        serverClients.size() == 0 ? isServerEmpty = true : isServerEmpty = false; //Ensure that receiving thread is sleeping
+        isServerEmpty = serverClients.size() == 0; //Ensure that receiving thread is sleeping
     }
 }
 
