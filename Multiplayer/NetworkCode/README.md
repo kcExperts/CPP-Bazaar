@@ -2,9 +2,13 @@ Contains test code for the networking portion of the ScratchChatScreen.
 
 ## Issues
 
-- [ ] Fix this whole cv debacle as the receiving thread will get stuck if the server is empty, even if isReceiving is set to false. I presume this would also happen when the server is full to the listening thread. I am probably incorrectly using condition variables.
+- [x] Fix this whole cv debacle as the receiving thread will get stuck if the server is empty, even if isReceiving is set to false.
 
 ## Versions
+
+V0.2.1:
+    + Fixed the issue where killing one thread forces the other to become deadlocked. 
+    - Removed the predicates for the condition variables, as they were not needed.
 
 V0.2:  
     + Rewrote the majority of the code making better use of mutexes and condition variables.  

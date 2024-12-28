@@ -32,9 +32,7 @@ struct Network_Server_Locks
     std::mutex client_vector_mtx;
     std::mutex error_msg_buffer_mtx;
     std::mutex client_vector_capacity_mtx;
-    std::condition_variable client_vector_cv;
-    bool isServerFull;
-    std::atomic<bool> isServerEmpty;
+    std::condition_variable client_vector_cv; //Used for operation of listening and receiving threads
     std::mutex handling_data_mtx;
     std::condition_variable handling_data_cv;
 };
@@ -80,20 +78,16 @@ int main(void)
         if (!Network_Server_CreateSocket()) return 1;
         if (!Network_Server_Bind()) return 1;
         if (!Network_Server_InitThreads()) return 1;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     Network_Server_Shutdown();
-     std::cout << "Receive Initialized1" << std::endl;
-    networkInfo.serverListeningThread.join();
-     std::cout << "Receive Initialized2" << std::endl;
-    networkInfo.serverReceivingThread.join();
-     std::cout << "Receive Initialized3" << std::endl;
+
+     std::cout << "Program Complete" << std::endl;
     return 0;
 }
 
 void Network_Server_Receive()
 {
-    std::cout << "Receive Initialized" << std::endl;
     ChatObject dataReceived;
     networkInfo.isReceiving = true;
     size_t client_vector_size = 0;
@@ -102,15 +96,21 @@ void Network_Server_Receive()
     fd_set data_check;
     struct timeval select_wait;
     select_wait.tv_sec = 0;
-    select_wait.tv_usec = 10000;
+    select_wait.tv_usec = 10000; //Creates waiting
     while (networkInfo.isReceiving)
     {
-        {   //Thread sleeps when server is empty **May need to use two mutex function
-            std::unique_lock lock1(networkLocks.client_vector_capacity_mtx);
-            networkLocks.client_vector_cv.wait(lock1, [](){return !networkLocks.isServerEmpty || !networkInfo.isReceiving;});
-            std::unique_lock lock2(networkLocks.client_vector_mtx);
+        {   //Get capacity
+            std::unique_lock lock(networkLocks.client_vector_mtx);
             size_t client_vector_size = networkInfo.client_vector.size();
         }
+        if (client_vector_size == 0)
+        {
+            std::unique_lock lock(networkLocks.client_vector_capacity_mtx);
+            networkLocks.client_vector_cv.wait(lock);
+        } else {
+            networkLocks.client_vector_cv.notify_one();
+        }
+
         for (int i = 0; i < client_vector_size; i++)
         {
             {   //Get the size and client
@@ -132,7 +132,6 @@ void Network_Server_Receive()
                     std::unique_lock lock1(networkLocks.client_vector_mtx);
                     networkInfo.client_vector.erase(networkInfo.client_vector.begin() + i);
                     std::lock_guard lock2(networkLocks.client_vector_capacity_mtx);
-                    if (client_vector_size >= MAX_CONNECTIONS) networkLocks.isServerFull = false; //Notify listening thread to continue
                 }
                 continue;
             }
@@ -152,18 +151,18 @@ void Network_HandleData(const ChatObject& data)
     std::cout << data.getMessage() << std::endl;
 }
 
-void Network_Server_Listen()
+void Network_Server_Listen() //Error occurs here for CV
 {
     networkInfo.isListening = true;
     //Set server and new client sockets to non-blocking
     u_long mode = 1; //Non-blocking mode 
     ioctlsocket(server, FIONBIO, &mode); //Set server to non-blocking
+    size_t client_vector_size;
     while (networkInfo.isListening) //Continuously accept new clients
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1)); //Wait a second before checking again
         {//Verify if the server is empty
             std::unique_lock<std::mutex> lock(networkLocks.client_vector_mtx);
-            networkLocks.isServerEmpty = (networkInfo.client_vector.size() == 0);
+            client_vector_size = networkInfo.client_vector.size();
         }
         SOCKET newClient = accept(server, NULL, NULL);
         if (newClient == INVALID_SOCKET)
@@ -172,16 +171,19 @@ void Network_Server_Listen()
             networkInfo.error_msg_buffer.push_back("Connection error has occured.");
         }
         //Accepts new client if possible
-        if (networkInfo.client_vector.size() < MAX_CONNECTIONS)
+        if (client_vector_size < MAX_CONNECTIONS)
         {
             ioctlsocket(newClient, FIONBIO, &mode); //Sets newClient to be non-blocking
             std::unique_lock<std::mutex> lock(networkLocks.client_vector_mtx);
             networkInfo.client_vector.push_back(newClient);
-        } else { //Lock listening until the server is non-empty or until we want to stop listening
+            lock.unlock();
+            networkLocks.client_vector_cv.notify_one();
+        } else
+        { //Lock listening until the server is non-empty or until we want to stop listening
             std::unique_lock lock(networkLocks.client_vector_capacity_mtx);
-            networkLocks.isServerFull = true;
-            networkLocks.client_vector_cv.wait(lock, [](){return !networkLocks.isServerFull || !networkInfo.isListening;});
+            networkLocks.client_vector_cv.wait(lock);
         }
+        std::this_thread::sleep_for(std::chrono::seconds(1)); //Wait a second before checking again
     }
 }
 
@@ -232,8 +234,6 @@ void Network_InitializeWSA()
 
 void Network_Server_Init()
 {
-    networkLocks.isServerFull = false;
-    networkLocks.isServerEmpty = true;
     networkInfo.isListening = false;
     networkInfo.isReceiving = false;
 }
@@ -250,6 +250,16 @@ void Network_Server_Shutdown()
 {
     networkInfo.isReceiving = false;
     networkInfo.isListening = false;
-    networkLocks.client_vector_cv.notify_all(); //This must be here incase it is stuck in deadlock as the server is empty
-    std::cout << "Shutdown begins" << std::endl;
+    /*Since both threads are used to signal the other to continue. Killing one makes the other stuck on the cv.
+    Hence the need for one last notification.*/
+    networkLocks.client_vector_cv.notify_all(); 
+
+    std::cout << "Debug0 About to join Listen" << std::endl;
+    networkInfo.serverListeningThread.join();
+    std::cout << "Debug1 Listen joined, joining receive" << std::endl;
+    networkInfo.serverReceivingThread.join();
+    std::cout << "Debug2 All joined" << std::endl;
+    shutdown(server, SD_BOTH);
+    closesocket(server);
+    server = INVALID_SOCKET;
 }
