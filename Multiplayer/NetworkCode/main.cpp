@@ -142,7 +142,6 @@ void Network_Server_Receive()
             }
             Network_HandleData(dataReceived); //Process data
         }
-    
     }
 }
 
