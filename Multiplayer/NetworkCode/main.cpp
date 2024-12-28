@@ -79,7 +79,7 @@ std::atomic<bool> isReceiving;
 bool isDataProcessed;
 std::mutex receiving_mutex;
 std::condition_variable receivingCondition;
-std::promise<const ChatObject&> dataToHandle_p;
+std::promise<const ChatObject&> dataToHandle_p; //Message channel
 auto dataToHandle_f = dataToHandle_p.get_future(); //May not need global
 
 
@@ -133,12 +133,7 @@ int main(void)
     return 0;
 }
 
-struct ChatState {
-    std::mutex mtx; //Anytime I do anything, lock
-    bool isServerGay;
-    int numCLients;
-    std::vector<Client> clients;
-};
+
 
 /*
 Checks every socket to see if a message has been sent, halting to process the data once received.
