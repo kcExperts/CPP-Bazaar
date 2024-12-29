@@ -9,7 +9,7 @@ Contains test code for the networking portion of the ScratchChatScreen.
 ## Versions
 
 V0.3.0:  
-    + Completed basic server functionality
+    + Completed basic server functionality  
     - Weird problem with Network_Client_Information networkClientInfo found when trying to change it to a reference.
 
 V0.2.2:  
