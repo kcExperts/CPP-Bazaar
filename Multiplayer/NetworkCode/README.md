@@ -16,8 +16,8 @@ V0.2.2:
     + Added basic Client code  
     - Turns out (after MUCH debugging) that my installation of mingw was breaking condition variables. Fixed
 
-V0.2.1:
-    + Fixed the issue where killing one thread forces the other to become deadlocked. 
+V0.2.1:  
+    + Fixed the issue where killing one thread forces the other to become deadlocked.  
     - Removed the predicates for the condition variables, as they were not needed.
 
 V0.2:  
