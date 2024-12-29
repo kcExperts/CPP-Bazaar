@@ -12,6 +12,10 @@ ChatModule::ChatModule()
     portLength = 0;
     ipLength = 0;
     isTyping = false;
+    username[0] = '\0';
+    message[0] = '\0';
+    port[0] = '\0';
+    ip[0] = '\0';
 }
 
 ChatModule::~ChatModule() {};
