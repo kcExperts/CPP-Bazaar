@@ -3,9 +3,14 @@ Contains test code for the networking portion of the ScratchChatScreen.
 ## Issues
 
 - [x] Fix this whole cv debacle as the receiving thread will get stuck if the server is empty, even if isReceiving is set to false.
-- [ ] Move the position of Network_HandleData(dataReceived); in Network_Server_Receive. Add a check for when data send is successfull so that data can be properly handled.  
+- [x] Move the position of Network_HandleData(dataReceived); in Network_Server_Receive. Add a check for when data send is successfull so that data can be properly handled.  
+- [ ] When networkClientInfo becomes a reference and is put that way in each function, setting a message adds an extra unknown char that should not be present. It could also not be the message setting and instead be a server side problem.
 
 ## Versions
+
+V0.3.0:  
+    + Completed basic server functionality
+    - Weird problem with Network_Client_Information networkClientInfo found when trying to change it to a reference.
 
 V0.2.2:  
     + Added basic Client code  
