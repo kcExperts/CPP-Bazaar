@@ -3,7 +3,8 @@ Contains test code for the networking portion of the ScratchChatScreen.
 ## Issues
 
 - [x] Fix this whole cv debacle as the receiving thread will get stuck if the server is empty, even if isReceiving is set to false.
-- [ ] Move the position of Network_HandleData(dataReceived); in Network_Server_Receive. Add a check for when data send is successfull so that data can be properly handled.
+- [ ] Move the position of Network_HandleData(dataReceived); in Network_Server_Receive. Add a check for when data send is successfull so that data can be properly handled.  
+- [ ] Help me
 
 ## Versions
 
