@@ -4,7 +4,7 @@ ChatModule::ChatModule(int fps)
 {
     ChatWindow = rl::Rectangle{CHATWINDOW_START_X, CHATWINDOW_START_Y, CHATWINDOW_WIDTH, CHATWINDOW_HEIGHT};
     WindowColor = rl::BLACK;
-    allowDrag = false;
+    allowDrag = true;
     currentMenu = Init;
     isServer = false;
     InitLoadingImage();
@@ -64,7 +64,7 @@ ChatModule::~ChatModule() //Need better implementation
 
 void ChatModule::Draw()
 {
-    rl::DrawRectangleRec(ChatWindow, WindowColor);
+    rl::DrawRectangle(sst::cxf(ChatWindow.x), sst::cyf(ChatWindow.y), sst::cxf(ChatWindow.width), sst::cyf(ChatWindow.height), WindowColor);
     switch (currentMenu)
     {
     case Init:
@@ -746,7 +746,8 @@ void ChatModule::DrawInit() const
 
 void ChatModule::UpdateInit()
 {
-    if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT) && rl::CheckCollisionPointRec(rl::GetMousePosition(), ChatWindow))
+    rl::Rectangle sstChatWindow = {sst::cxf(ChatWindow.x), sst::cyf(ChatWindow.y), sst::cxf(ChatWindow.width), sst::cyf(ChatWindow.height)};
+    if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT) && rl::CheckCollisionPointRec(rl::GetMousePosition(), sstChatWindow))
     {
         currentMenu = Select;
         areButtonsInitialized = false;
@@ -757,7 +758,8 @@ void ChatModule::Drag()
 {
     if (!allowDrag) return;
     rl::Vector2 mousePos = rl::GetMousePosition();
-
+    mousePos.x = mousePos.x * ((float)sst::baseX/(float)rl::GetScreenWidth()); //Resize to use base 1280 x 720
+    mousePos.y = mousePos.y * ((float)sst::baseY/(float)rl::GetScreenHeight()); //Resize to use base 1280 x 720
     // Store the current position of the mouse during a left click to use as the reference point for the starting drag position
     if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT))
     {
@@ -806,105 +808,105 @@ const rl::Rectangle ChatModule::CenterRect(int width, int height) const
 void ChatModule::DrawTextAboveRect(const ChatModule_TextInfo &info, int padding) const
 {
     rl::Rectangle tempRec = {
-        info.textBox.location.x + CHATWINDOW_OFFSET_X,
-        info.textBox.location.y + CHATWINDOW_OFFSET_Y,
-        info.textBox.location.width,
-        info.textBox.location.height};
+        sst::cxf(info.textBox.location.x + CHATWINDOW_OFFSET_X),
+        sst::cyf(info.textBox.location.y + CHATWINDOW_OFFSET_Y),
+        sst::cxf(info.textBox.location.width),
+        sst::cyf(info.textBox.location.height)};
     if (!info.hasTextBox)
     {
     rl::DrawText(
         info.text.c_str(),
-        (info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X,
-        info.textBox.location.y - info.font - padding + CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx((info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X),
+        sst::cy(info.textBox.location.y - info.font - padding + CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
-        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.color);
+        rl::DrawRectangleLinesEx(tempRec, sst::cxf(info.textBox.thickness), info.textBox.color);
     } else {
         rl::DrawText(
         info.text.c_str(),
-        (info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X,
-        info.textBox.location.y - info.font - padding + CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx((info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X),
+        sst::cy(info.textBox.location.y - info.font - padding + CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.nonSelectColor);
-        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
+        rl::DrawRectangleLinesEx(tempRec, sst::cxf(info.textBox.thickness), info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
     }
 }
 void ChatModule::DrawTextBelowRect(const ChatModule_TextInfo &info, int padding) const
 {
     rl::Rectangle tempRec = {
-        info.textBox.location.x + CHATWINDOW_OFFSET_X,
-        info.textBox.location.y + CHATWINDOW_OFFSET_Y,
-        info.textBox.location.width,
-        info.textBox.location.height};
+        sst::cxf(info.textBox.location.x + CHATWINDOW_OFFSET_X),
+        sst::cyf(info.textBox.location.y + CHATWINDOW_OFFSET_Y),
+        sst::cxf(info.textBox.location.width),
+        sst::cyf(info.textBox.location.height)};
     if (!info.hasTextBox)
     {
         rl::DrawText(
         info.text.c_str(),
-        (info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2+ CHATWINDOW_OFFSET_X,
-        info.textBox.location.y + info.textBox.location.height + padding+ CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx((info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2+ CHATWINDOW_OFFSET_X),
+        sst::cy(info.textBox.location.y + info.textBox.location.height + padding+ CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
-        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.color);
+        rl::DrawRectangleLinesEx(tempRec, sst::cxf(info.textBox.thickness), info.textBox.color);
     } else {
         rl::DrawText(
         info.text.c_str(),
-        (info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2+ CHATWINDOW_OFFSET_X,
-        info.textBox.location.y + info.textBox.location.height + padding+ CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx((info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2+ CHATWINDOW_OFFSET_X),
+        sst::cy(info.textBox.location.y + info.textBox.location.height + padding+ CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.nonSelectColor);
-        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
+        rl::DrawRectangleLinesEx(tempRec, sst::cxf(info.textBox.thickness), info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
     }
 }
 void ChatModule::DrawTextLeftOfRect(const ChatModule_TextInfo &info, int padding) const
 {
     rl::Rectangle tempRec = {
-        info.textBox.location.x + CHATWINDOW_OFFSET_X,
-        info.textBox.location.y + CHATWINDOW_OFFSET_Y,
-        info.textBox.location.width,
-        info.textBox.location.height};
+        sst::cxf(info.textBox.location.x + CHATWINDOW_OFFSET_X),
+        sst::cyf(info.textBox.location.y + CHATWINDOW_OFFSET_Y),
+        sst::cxf(info.textBox.location.width),
+        sst::cyf(info.textBox.location.height)};
     if (!info.hasTextBox)
     {
         rl::DrawText(
         info.text.c_str(),
-        info.textBox.location.x - rl::MeasureText(info.text.c_str(), info.font) - padding+ CHATWINDOW_OFFSET_X,
-        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2+ CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx(info.textBox.location.x - rl::MeasureText(info.text.c_str(), info.font) - padding+ CHATWINDOW_OFFSET_X),
+        sst::cy((info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2+ CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
-        rl::DrawRectangleLinesEx(info.textBox.location, info.textBox.thickness, info.textBox.color);
+        rl::DrawRectangleLinesEx(info.textBox.location, sst::cxf(info.textBox.thickness), info.textBox.color);
     } else {
         rl::DrawText(
         info.text.c_str(),
-        info.textBox.location.x - rl::MeasureText(info.text.c_str(), info.font) - padding+ CHATWINDOW_OFFSET_X,
-        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2+ CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx(info.textBox.location.x - rl::MeasureText(info.text.c_str(), info.font) - padding+ CHATWINDOW_OFFSET_X),
+        sst::cy((info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2+ CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.nonSelectColor);
-        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
+        rl::DrawRectangleLinesEx(tempRec, sst::cxf(info.textBox.thickness), info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
     }
 }
 void ChatModule::DrawTextRightOfRect(const ChatModule_TextInfo &info, int padding) const
 {
     rl::Rectangle tempRec = {
-        info.textBox.location.x + CHATWINDOW_OFFSET_X,
-        info.textBox.location.y + CHATWINDOW_OFFSET_Y,
-        info.textBox.location.width,
-        info.textBox.location.height};
+        sst::cxf(info.textBox.location.x + CHATWINDOW_OFFSET_X),
+        sst::cyf(info.textBox.location.y + CHATWINDOW_OFFSET_Y),
+        sst::cxf(info.textBox.location.width),
+        sst::cyf(info.textBox.location.height)};
     if (!info.hasTextBox)
     {
         rl::DrawText(
         info.text.c_str(),
-        info.textBox.location.x + info.textBox.location.width + padding + CHATWINDOW_OFFSET_X,
-        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2 + CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx(info.textBox.location.x + info.textBox.location.width + padding + CHATWINDOW_OFFSET_X),
+        sst::cy((info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2 + CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
-        rl::DrawRectangleLinesEx(info.textBox.location, info.textBox.thickness, info.textBox.color);
+        rl::DrawRectangleLinesEx(info.textBox.location, sst::cxf(info.textBox.thickness), info.textBox.color);
     } else {
         rl::DrawText(
         info.text.c_str(),
-        info.textBox.location.x + info.textBox.location.width + padding + CHATWINDOW_OFFSET_X,
-        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2 + CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx(info.textBox.location.x + info.textBox.location.width + padding + CHATWINDOW_OFFSET_X),
+        sst::cy((info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2 + CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.nonSelectColor);
-        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
+        rl::DrawRectangleLinesEx(tempRec, sst::cxf(info.textBox.thickness), info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
     }
 }
 
@@ -912,9 +914,9 @@ void ChatModule::DrawTextOnPoint(const ChatModule_TextInfo &info) const
 {
     rl::DrawText(
         info.text.c_str(),
-        info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X,
-        info.textLocationPoint.y - (info.font / 2) + CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx(info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X),
+        sst::cy(info.textLocationPoint.y - (info.font / 2) + CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
 }
 
@@ -922,9 +924,9 @@ void ChatModule::DrawTextLeftOfPoint(const ChatModule_TextInfo &info) const
 {
     rl::DrawText(
         info.text.c_str(),
-        info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) + CHATWINDOW_OFFSET_X,
-        info.textLocationPoint.y - (info.font / 2) + CHATWINDOW_OFFSET_Y,
-        info.font,
+        sst::cx(info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) + CHATWINDOW_OFFSET_X),
+        sst::cy(info.textLocationPoint.y - (info.font / 2) + CHATWINDOW_OFFSET_Y),
+        sst::cx(info.font),
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
 }
 
@@ -967,10 +969,10 @@ void ChatModule::CheckButtonCollision()
         if (button.second.hasTextBox)
         {   
             if (rl::CheckCollisionPointRec(mousePos,
-            (rl::Rectangle){button.second.textBox.location.x + CHATWINDOW_OFFSET_X,
-             button.second.textBox.location.y + CHATWINDOW_OFFSET_Y,
-            button.second.textBox.location.width, 
-             button.second.textBox.location.height}))
+            (rl::Rectangle){sst::cxf(button.second.textBox.location.x + CHATWINDOW_OFFSET_X),
+            sst::cyf(button.second.textBox.location.y + CHATWINDOW_OFFSET_Y),
+            sst::cxf(button.second.textBox.location.width), 
+            sst::cyf(button.second.textBox.location.height)}))
             {
                 button.second.isMouseHovering = true;
             } else {
@@ -1105,15 +1107,15 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
             {
                 rl::DrawText(
                     username,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(username, info.font)/2,
-                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
-                    info.font, info.nonSelectColor);
+                    sst::cx(info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(username, info.font)/2),
+                    sst::cy(info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y),
+                    sst::cx(info.font), info.nonSelectColor);
             } else {
                 rl::DrawText(
                     username,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X + 5,
-                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
-                    info.font, info.nonSelectColor);
+                    sst::cx(info.textBox.location.x + CHATWINDOW_OFFSET_X + 5),
+                    sst::cy(info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y),
+                    sst::cx(info.font), info.nonSelectColor);
             }
             break;
         case Port:
@@ -1121,15 +1123,15 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
             {
                 rl::DrawText(
                     port,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(port, info.font)/2,
-                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
-                    info.font, info.nonSelectColor);
+                    sst::cx(info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(port, info.font)/2),
+                    sst::cy(info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y),
+                    sst::cx(info.font), info.nonSelectColor);
             } else {
                 rl::DrawText(
                     port,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X + 5,
-                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
-                    info.font, info.nonSelectColor);
+                    sst::cx(info.textBox.location.x + CHATWINDOW_OFFSET_X + 5),
+                    sst::cy(info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y),
+                    sst::cx(info.font), info.nonSelectColor);
             }
             break;
         case Ip:
@@ -1137,15 +1139,15 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
             {
                 rl::DrawText(
                     ip,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(ip, info.font)/2,
-                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
-                    info.font, info.nonSelectColor);
+                    sst::cx(info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(ip, info.font)/2),
+                    sst::cy(info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y),
+                    sst::cx(info.font), info.nonSelectColor);
             } else {
                 rl::DrawText(
                     ip,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X + 5,
-                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
-                    info.font, info.nonSelectColor);
+                    sst::cx(info.textBox.location.x + CHATWINDOW_OFFSET_X + 5),
+                    sst::cy(info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y),
+                    sst::cx(info.font), info.nonSelectColor);
             }
             break;
         case Message:
@@ -1153,15 +1155,15 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
             {
                 rl::DrawText(
                     message,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(message, msgFontSize)/2,
-                    info.textBox.location.y + (float)(info.textBox.location.height - msgFontSize)/2 + CHATWINDOW_OFFSET_Y,
-                    msgFontSize, info.nonSelectColor);
+                    sst::cx(info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(message, msgFontSize)/2),
+                    sst::cy(info.textBox.location.y + (float)(info.textBox.location.height - msgFontSize)/2 + CHATWINDOW_OFFSET_Y),
+                    sst::cx(msgFontSize), info.nonSelectColor);
             } else {
                 rl::DrawText(
                     message,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X + 5,
-                    info.textBox.location.y + (float)(info.textBox.location.height - msgFontSize)/2 + CHATWINDOW_OFFSET_Y,
-                    msgFontSize, info.nonSelectColor);
+                    sst::cx(info.textBox.location.x + CHATWINDOW_OFFSET_X + 5),
+                    sst::cy(info.textBox.location.y + (float)(info.textBox.location.height - msgFontSize)/2 + CHATWINDOW_OFFSET_Y),
+                    sst::cx(msgFontSize), info.nonSelectColor);
             }
             break;
 
@@ -1171,28 +1173,37 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
 void ChatModule::DrawTextCenteredAtXY(const std::string &text, int x, int y, int font, int offsetAbove, rl::Color color) const
 {
     rl::DrawText(text.c_str(),
-    x + CHATWINDOW_OFFSET_X - rl::MeasureText(text.c_str(), font)/2,
-    y + CHATWINDOW_OFFSET_Y - font/2 - offsetAbove, font, color);
+    sst::cx(x + CHATWINDOW_OFFSET_X - rl::MeasureText(text.c_str(), font)/2),
+    sst::cy(y + CHATWINDOW_OFFSET_Y - font/2 - offsetAbove), sst::cx(font), color);
 }
 
 void ChatModule::DrawRecFromButtonInfo(const ChatModule_TextInfo& info) const
 {
-    rl::DrawRectangle(info.rectangle.x + CHATWINDOW_OFFSET_X, info.rectangle.y + CHATWINDOW_OFFSET_Y, info.rectangle.width, info.rectangle.height, info.nonSelectColor);
+    rl::DrawRectangle(
+        sst::cx(info.rectangle.x + CHATWINDOW_OFFSET_X), 
+        sst::cy(info.rectangle.y + CHATWINDOW_OFFSET_Y), 
+        sst::cx(info.rectangle.width), 
+        sst::cy(info.rectangle.height),
+        info.nonSelectColor);
 }
 
 void ChatModule::DrawRecLinesFromButtonInfo(const ChatModule_TextInfo& info, float linethickness) const
 {
-    rl::Rectangle rec = {info.rectangle.x + CHATWINDOW_OFFSET_X, info.rectangle.y + CHATWINDOW_OFFSET_Y, info.rectangle.width, info.rectangle.height};
-    rl::DrawRectangleLinesEx(rec, linethickness, info.nonSelectColor);
+    rl::Rectangle rec = {
+        sst::cxf(info.rectangle.x + CHATWINDOW_OFFSET_X),
+        sst::cyf(info.rectangle.y + CHATWINDOW_OFFSET_Y), 
+        sst::cxf(info.rectangle.width), 
+        sst::cyf(info.rectangle.height)};
+    rl::DrawRectangleLinesEx(rec, sst::cxf(linethickness), info.nonSelectColor);
 }
 
 //Assuming DrawTextOnPoint is used
 void ChatModule::GetRectFromPoint_Center(const ChatModule_TextInfo &info, rl::Rectangle& rec)
 {
-    rec.x = info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X;
-    rec.y = info.textLocationPoint.y - info.font / 2 + CHATWINDOW_OFFSET_Y;
-    rec.width = (float)rl::MeasureText(info.text.c_str(), info.font);
-    rec.height = (float)info.font;
+    rec.x = sst::cxf(info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) / 2 + CHATWINDOW_OFFSET_X);
+    rec.y = sst::cyf(info.textLocationPoint.y - info.font / 2 + CHATWINDOW_OFFSET_Y);
+    rec.width = sst::cxf((float)rl::MeasureText(info.text.c_str(), info.font));
+    rec.height = sst::cyf((float)info.font);
 }
 
 void ChatModule::GetRectFromPoint_Top(const ChatModule_TextInfo &info, rl::Rectangle& rec)
@@ -1202,10 +1213,10 @@ void ChatModule::GetRectFromPoint_Top(const ChatModule_TextInfo &info, rl::Recta
 
 void ChatModule::GetRectFromPoint_Left(const ChatModule_TextInfo &info, rl::Rectangle& rec)
 {
-    rec.x = info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) + CHATWINDOW_OFFSET_X;
-    rec.y = info.textLocationPoint.y - info.font / 2 + CHATWINDOW_OFFSET_Y;
-    rec.width = (float)rl::MeasureText(info.text.c_str(), info.font);
-    rec.height = (float)info.font;
+    rec.x = sst::cxf(info.textLocationPoint.x - rl::MeasureText(info.text.c_str(), info.font) + CHATWINDOW_OFFSET_X);
+    rec.y = sst::cyf(info.textLocationPoint.y - info.font / 2 + CHATWINDOW_OFFSET_Y);
+    rec.width = sst::cxf((float)rl::MeasureText(info.text.c_str(), info.font));
+    rec.height = sst::cyf((float)info.font);
 }
 
 void ChatModule::GetRectFromPoint_Right(const ChatModule_TextInfo &info, rl::Rectangle& rec)
@@ -1234,7 +1245,7 @@ void ChatModule::DrawChatHistory()
             if (!(textLength < (CHATWINDOW_MSG_BOX_WIDTH - 30))) font -= 8;
         }
         //Draw to screen
-        rl::DrawText(message.data(), 10 + CHATWINDOW_OFFSET_X, 20*i+ 10+  CHATWINDOW_OFFSET_Y, font, rl::WHITE);
+        rl::DrawText(message.data(), sst::cx(10 + CHATWINDOW_OFFSET_X), sst::cy(20*i+ 10+  CHATWINDOW_OFFSET_Y), sst::cx(font), rl::WHITE);
         i++;
     }
 }
