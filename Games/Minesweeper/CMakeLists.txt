@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION "3.30.2")
 
-project("ModularChatScreen")
+project("Minesweeper")
 
-set(CMAKE_CXX_STANDARD 17) #It is what I have
+set(CMAKE_CXX_STANDARD 17) 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -12,16 +12,11 @@ SET(PRECOMPILE
 )
 
 SET(HEADERS
-    src/ChatModule.h
-    src/ChatModuleDefines.h
-    src/ChatObject.h
-    src/networkcodeTCP.h
+    src/minesweeper.h
 )
 
 SET(CODEFILES
-    src/ChatModule.cpp
-    src/ChatObject.cpp
-    src/networkcodeTCP.cpp
+src/minesweeper.cpp
 )
 
 add_compile_options(
