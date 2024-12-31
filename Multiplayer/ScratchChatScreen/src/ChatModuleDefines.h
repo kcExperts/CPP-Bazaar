@@ -4,26 +4,28 @@
 #include "precomp.h"
 #include <string>
 
+#define MAX_CHAT_CONNECTIONS 4
+
 #define STANDARD_FONT_SIZE 19
 
 //Base ChatWindow Dimensions
-#define CHATWINDOW_WIDTH 300
-#define CHATWINDOW_HEIGHT 200
+#define CHATWINDOW_WIDTH 300 //300
+#define CHATWINDOW_HEIGHT 200 //200
 #define CHATWINDOW_START_X sst::baseX/2
 #define CHATWINDOW_START_Y sst::baseY/2
+#define CHATWINDOW_CENTER_X CHATWINDOW_WIDTH/2
+#define CHATWINDOW_CENTER_Y CHATWINDOW_HEIGHT/2
 
 //Username box dimensions
-#define CHATWINDOW_USERNAMEBOX_WIDTH 150
-#define CHATWINDOW_USERNAMEBOX_HEIGHT STANDARD_FONT_SIZE + 6
+#define CHATWINDOW_DEFAULT_TEXTBOX_WIDTH 150
+#define CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT STANDARD_FONT_SIZE + 6
 
 //Chatwindow text offset
 #define CHATWINDOW_OFFSET_X ChatWindow.x
 #define CHATWINDOW_OFFSET_Y ChatWindow.y
 
 //Chat length
-constexpr size_t MAX_USERNAME_LENGTH = 10;
-constexpr size_t MAX_MESSAGE_LENGTH = 200;
-constexpr size_t MAX_MESSAGE_HISTORY_STORAGE_SIZE = 5;
+constexpr size_t MAX_MESSAGE_HISTORY_STORAGE_SIZE = 6;
 constexpr size_t MAX_PORTNUMBER_LENGTH = 5;
 constexpr size_t MAX_IP_LENGTH = 16;
 
@@ -34,6 +36,7 @@ constexpr size_t MAX_IP_LENGTH = 16;
 #define CHATWINDOW_TEXT_BOTTOMRIGHT_Y CHATWINDOW_HEIGHT + PADDING - (float)buttonInfo.font / 2
 #define CHATWINDOW_TEXT_RIGHT_X ChatWindow.width - PADDING
 #define PADDING 2
+#define CHATWINDOW_MSG_BOX_WIDTH CHATWINDOW_WIDTH - rl::MeasureText("Msg", STANDARD_FONT_SIZE) - 10
 
 
 //Lists all possible text edit fields
@@ -77,6 +80,7 @@ struct ChatModule_TextInfo
     //Only used for text boxes
     ChatModule_TextBox textBox;
     bool hasTextBox = false;
+    rl::Rectangle rectangle; //Used only if it is a rectangle to be drawn
 };
 
 //Meant to be used with raylib's DrawTexturePro function
@@ -100,10 +104,17 @@ enum ChatModule_Menu
     Settings,
     Host,
     Join,
-    Loading
+    ServerCreation,
+    ClientCreation,
+    Chat
 };
 
-
-
+enum ChatModule_SuperBool
+{
+    True,
+    False,
+    Display,
+    Null
+};
 
 #endif
