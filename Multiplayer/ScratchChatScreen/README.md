@@ -6,6 +6,9 @@ A modular chatscreen implemented using winsock2. Uses threads.
 
 ## Version History
 
+V1.1:  
+    + Resolution support has been implemented
+
 V1.0:  
     + All network code has been implemented  
     + All client code has been implemented  
@@ -39,9 +42,9 @@ V0.0:
     - [x] Fix Dragging Breaking Everything
     - [ ] When inputing a username that is exactly MAX_MSG_LEN long, it breaks when displaying to the chat window
     - [ ] Add a better disconnect message when a client disconnects without first sending anything
-    - [ ] Add support for different resolutions
  
 - GUI
+    - [x] Add support for different resolutions
     - [x] Create window
     - [x] Setup Buttons
         - [x] Use container that can hold identifier and button bounds/position
