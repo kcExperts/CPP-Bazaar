@@ -15,11 +15,13 @@ SET(HEADERS
     src/ChatModule.h
     src/ChatModuleDefines.h
     src/ChatObject.h
+    src/networkcodeTCP.h
 )
 
 SET(CODEFILES
     src/ChatModule.cpp
     src/ChatObject.cpp
+    src/networkcodeTCP.cpp
 )
 
 add_executable(main src/main.cpp ${PRECOMPILE} ${HEADERS} ${CODEFILES})

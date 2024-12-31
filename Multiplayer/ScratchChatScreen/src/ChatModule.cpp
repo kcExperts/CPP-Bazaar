@@ -1,10 +1,12 @@
 #include "ChatModule.h"
 
-ChatModule::ChatModule()
+ChatModule::ChatModule(int fps)
 {
     ChatWindow = rl::Rectangle{CHATWINDOW_START_X, CHATWINDOW_START_Y, CHATWINDOW_WIDTH, CHATWINDOW_HEIGHT};
     WindowColor = rl::BLACK;
+    allowDrag = false;
     currentMenu = Init;
+    isServer = false;
     InitLoadingImage();
     areButtonsInitialized = false;
     usernameLength = 0;
@@ -16,9 +18,49 @@ ChatModule::ChatModule()
     message[0] = '\0';
     port[0] = '\0';
     ip[0] = '\0';
+    wasNetworkCreated = Null;
+    Network_InitializeWSA(gen_err);
+    program_fps = fps;
+    size_t count = 0;
+    displayError = false;
+    timeToLeaveMenu = false;
 }
 
-ChatModule::~ChatModule() {};
+// ChatModule::ChatModule(int fps, bool isServer, std::string server_ip, std::string server_port, std::string chat_username)
+// {
+//     ChatWindow = rl::Rectangle{CHATWINDOW_START_X, CHATWINDOW_START_Y, CHATWINDOW_WIDTH, CHATWINDOW_HEIGHT};
+//     WindowColor = rl::BLACK;
+//     allowDrag = true;
+//     this->isServer = isServer;
+//     InitLoadingImage();
+//     areButtonsInitialized = false;
+//     usernameLength = 0;
+//     messageLength = 0;
+//     portLength = 0;
+//     ipLength = 0;
+//     isTyping = false;
+//     username[0] = '\0';
+//     message[0] = '\0';
+//     port[0] = '\0';
+//     ip[0] = '\0';
+//     wasNetworkCreated = Null;
+//     Network_InitializeWSA(gen_err);
+//     program_fps = fps;
+//     size_t count = 0;
+//     displayError = false;
+//     timeToLeaveMenu = false;
+//     if (isServer) {currentMenu = ServerCreation;}
+//     else {currentMenu = ClientCreation;}
+// }
+
+ChatModule::~ChatModule() //Need better implementation
+{
+    if (currentMenu == Chat)
+    {
+        if (isServer) {Network_Server_Shutdown(server_locks, server_info);}
+        else {Network_Client_Shutdown(client_locks, client_info);} 
+    }
+};
 
 void ChatModule::Draw()
 {
@@ -41,11 +83,497 @@ void ChatModule::Draw()
         DrawHost();
         break;
     case Join:
-        //Join
+        if (!areButtonsInitialized) InitializeJoin();
+        DrawJoin();
         break;
-    case Loading:
+    case ServerCreation:
+        if (!areButtonsInitialized) InitializeServerCreation();
         DrawLoading();
         break;
+    case ClientCreation:
+        if (!areButtonsInitialized) InitializeClientCreation();
+        DrawLoading();
+        break;
+    case Chat:
+        if (!areButtonsInitialized) InitializeChatScreen();
+        DrawChatScreen();
+        break;
+    }
+}
+
+void ChatModule::UpdateState()
+{
+    if (rl::IsKeyPressed(rl::KEY_D) && !isTyping) allowDrag = !allowDrag;
+    Drag();
+    switch (currentMenu)
+    {
+    case Init:
+        UpdateInit();
+        break;
+    case Select:
+        UpdateSelect();
+        break;
+    case Settings:
+        //Settings
+        break;
+    case Host:
+        UpdateHost();
+        break;
+    case Join:
+        UpdateJoin();
+        break;
+    case ServerCreation:
+        UpdateServerCreation();
+        break;
+    case ClientCreation:
+        UpdateClientCreation();
+        break;
+    case Chat:
+        UpdateChatScreen();
+        break;
+    }
+}
+
+void ChatModule::InitializeChatScreen()
+{
+    client_vec_prev_size = 0;
+    areButtonsInitialized = true;
+    msgFontSize = STANDARD_FONT_SIZE;
+    errorMsgOut.clear();
+    ButtonInfoInit();
+    buttonInfo.hasTextBox = false;
+    buttonInfo.locationOrientation = Center;
+    rl::Rectangle rec = CenterRect(CHATWINDOW_WIDTH - 10, CHATWINDOW_HEIGHT - 70);
+    rec.y -=30;
+    buttonInfo.rectangle = rec;
+    buttons["ChatWindowBounds"] = buttonInfo;
+    isServer ? buttonInfo.text = "Close" : buttonInfo.text = "Leave";
+    buttonInfo.hasTextBox = false;
+    buttonInfo.locationOrientation = Left;
+    buttonInfo.textLocationPoint = {CHATWINDOW_TEXT_RIGHT_X, CHATWINDOW_TEXT_BOTTOMRIGHT_Y};
+    buttons["Close"] = buttonInfo;
+    buttonInfo.hasTextBox = true;
+    buttonInfo.text = "Msg";
+    buttonInfo.textBox.color = rl::WHITE;
+    buttonInfo.textBox.type = Message;
+    rec = CenterRect(CHATWINDOW_MSG_BOX_WIDTH, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
+    rec.y += 50;
+    rec.x += rl::MeasureText("Msg", STANDARD_FONT_SIZE)/2;
+    buttonInfo.textBox.location = rec;
+    buttons["MessageBox"] = buttonInfo;
+}
+
+void ChatModule::DrawChatScreen()
+{
+    if (!timeToLeaveMenu)
+    {
+        DrawRecLinesFromButtonInfo(buttons.at("ChatWindowBounds"), 2);
+        DrawChatHistory();
+        DrawTextLeftOfRect(buttons.at("MessageBox"), 2);
+        DrawTextBox(buttons.at("MessageBox"), Message, false);
+        if (fps_counter < 2 * program_fps)
+        {
+            DrawTextCenteredAtXY(errorMsgOut, rl::MeasureText(errorMsgOut.c_str(), 10)/2, CHATWINDOW_HEIGHT, 5, 10, rl::RED);
+        } else {
+            displayError = false;
+            fps_counter = 0;
+            errorMsgOut.clear();
+        }
+        DrawTextLeftOfPoint(buttons.at("Close"));
+    } 
+    else {DrawLoading();}
+}
+
+void ChatModule::UpdateChatScreen()
+{
+    if (!timeToLeaveMenu)
+    {
+        int font = STANDARD_FONT_SIZE;
+        msgFontSize = font;
+        int textLength = rl::MeasureText(message, font);
+        if (!(textLength < (CHATWINDOW_MSG_BOX_WIDTH - 30)))
+        {
+            msgFontSize = STANDARD_FONT_SIZE - 3;
+            font -= 3;
+            textLength = rl::MeasureText(message, font);
+            if (!(textLength < (CHATWINDOW_MSG_BOX_WIDTH - 30))) msgFontSize = STANDARD_FONT_SIZE - 7;
+        }
+        {   //errorMsgOut updating logic
+            if (displayError) fps_counter++;
+            std::string temp = Network_GetLastError(gen_err);
+            if (isServer)
+            {
+                std::scoped_lock lock(server_locks.client_vector_mtx, server_locks.client_vector_capacity_mtx);
+                size_t clientsInServer = server_info.client_vector.size();
+                if (client_vec_prev_size < clientsInServer) temp = " A client has joined the server";
+                client_vec_prev_size = clientsInServer;
+            }
+            if (temp.size() != 0)
+            {
+                displayError = true;
+                errorMsgOut = temp;
+                fps_counter = 0;
+            }
+        }
+        ModifyTextBox();
+        CheckButtonCollision();
+        if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT))
+        {
+            bool isE = buttons.at("MessageBox").textBox.isEditing;
+            if (buttons.at("MessageBox").isMouseHovering && ((!isTyping && !isE) || (isTyping && isE)))
+            {
+                buttons.at("MessageBox").textBox.isEditing = !buttons.at("MessageBox").textBox.isEditing;
+                isTyping = !isTyping;
+            }
+            if (buttons.at("Close").isMouseHovering && !isTyping)
+            {
+                areButtonsInitialized = false;
+                if (isServer)
+                {
+                    intermediateThread = std::thread([this]{IntermediateServerLeavingThread();});
+                    errorMsgOut = "Server Terminated";
+                } else {
+                    intermediateThread = std::thread([this]{IntermediateClientLeavingThread();});
+                    errorMsgOut = "You have disconnected";
+                }
+                timeToLeaveMenu = true;
+                return;
+            }
+        }
+        if (rl::IsKeyPressed(rl::KEY_ENTER))
+        {
+            if (messageLength > 0)
+            {
+                std::lock_guard lock(server_locks.sending_data_mtx);
+                //Broadcasts to all clients / sends to the server
+                if (isServer)
+                {
+                    server_info.dataToSend.setMessage(message);
+                    Network_Server_SendMsg(server_locks);
+                    DataHandler(server_info.dataToSend);
+                } else {
+                    client_info.dataToSend.setMessage(message);
+                    Network_Client_Updates(client_locks);
+                    DataHandler(client_info.dataToSend);
+                }
+                messageLength = 0;
+                message[0] = '\0';
+            }
+        }
+        if (isServer) Network_Server_Updates(server_locks, server_info);
+    } else {
+        if (!isThreadDone) {UpdateLoading();} 
+        else {
+            intermediateThread.join();
+            messageLength = 0;
+            message[0] = '\0';
+            currentMenu = Select;
+            timeToLeaveMenu = false;
+            areButtonsInitialized = false;
+            messageHistory.clear();
+        }
+    }
+}
+
+void ChatModule::CreateClient()
+{
+    Network_Client_Init(5, client_info);
+    client_info.dataToSend.setUsername(username);
+    client_info.data_Handler_Func = [this](const ChatObject& data) {this->DataHandler(data);};
+    if (portLength == 0)
+    {
+        wasNetworkCreated = False;
+        std::unique_lock<std::mutex> lock(gen_err.msg_buffer_mtx);
+        gen_err.msg_buffer = "Enter valid port number";
+        intermediateThread_cv.notify_all();
+        return;
+    }
+    Network_Client_Set_Port(port, client_info);
+    if (ipLength == 0)
+    {
+        wasNetworkCreated = False;
+        std::unique_lock<std::mutex> lock(gen_err.msg_buffer_mtx);
+        gen_err.msg_buffer = "Enter valid ip address";
+        intermediateThread_cv.notify_all();
+        return;
+    }
+    Network_Client_Set_Ip(ip, client_info);
+    if (!Network_Client_CreateSocket(client_locks, client_info))
+    {
+        wasNetworkCreated = False;
+        std::unique_lock<std::mutex> lock(gen_err.msg_buffer_mtx);
+        gen_err.msg_buffer = "Socket creation failed";
+        intermediateThread_cv.notify_all();
+        return;
+    }
+    if (std::stoi(port) == 0) //Loopback connection
+    {
+        if (!Network_Client_LoopbackConnect(gen_err, client_locks, client_info))
+        {
+            wasNetworkCreated = False;
+            intermediateThread_cv.notify_all();
+            return;
+        }
+    } else {
+        if (!Network_Client_ConnectToServer(gen_err, client_locks, client_info))
+        {
+            wasNetworkCreated = False;
+            intermediateThread_cv.notify_all();
+            return;
+        }
+    }
+    Network_Client_InitThreads(gen_err, client_locks, client_info);
+    wasNetworkCreated = True;
+    intermediateThread_cv.notify_all();
+}
+
+void ChatModule::IntermediateClientCreationThread()
+{
+    isThreadDone = false;
+    loading_thread = std::thread([this]{CreateClient();});
+    std::unique_lock lock(intermediateThread_mtx);
+    intermediateThread_cv.wait(lock);
+    loading_thread.join();
+    isThreadDone = true;
+}
+
+void ChatModule::InitializeClientCreation()
+{
+    intermediateThread = std::thread([this]{IntermediateClientCreationThread();});
+    buttons.clear();
+    areButtonsInitialized = true;
+}
+
+void ChatModule::UpdateClientCreation()
+{
+    if (!isThreadDone) UpdateLoading();
+    else
+    {
+        intermediateThread.join();
+        if (wasNetworkCreated == True)
+        {
+            areButtonsInitialized = false;
+            currentMenu = Chat;
+        } else if (wasNetworkCreated == False) {
+            areButtonsInitialized = false;
+            currentMenu = Join;
+        }
+    }
+}
+
+void ChatModule::IntermediateServerLeavingThread()
+{
+    isThreadDone = false;
+    loading_thread = std::thread([this]{
+        Network_Server_Shutdown(server_locks, server_info);
+        intermediateThread_cv.notify_all();
+        });
+    std::unique_lock lock(intermediateThread_mtx);
+    intermediateThread_cv.wait(lock);
+    loading_thread.join();
+    isThreadDone = true;    
+}
+
+void ChatModule::IntermediateClientLeavingThread()
+{
+    isThreadDone = false;
+    loading_thread = std::thread([this]{
+        Network_Client_Shutdown(client_locks, client_info);
+        intermediateThread_cv.notify_all();
+        });
+    std::unique_lock lock(intermediateThread_mtx);
+    intermediateThread_cv.wait(lock);
+    loading_thread.join();
+    isThreadDone = true;    
+}
+
+void ChatModule::DataHandler(const ChatObject& data) //Recycled code from previous chat screen
+{
+    const std::size_t len = MAX_USERNAME_LEN + MAX_MSG_LEN + 1;
+    std::lock_guard lockA(messageHistory_mtx);
+    std::array<char, len> storedMessage; //Temporary container
+    std::strncpy(storedMessage.data(), data.getUsername().c_str(), MAX_USERNAME_LEN); //Add username
+    std::strncat(storedMessage.data(), ": ", len - std::strlen(storedMessage.data()));
+    std::strncat(storedMessage.data(), data.getMessage().c_str(), len - std::strlen(storedMessage.data())); //Copy over message
+    storedMessage[MAX_MSG_LEN] = '\0'; //Ensure null termination
+    messageHistory.push_back(storedMessage); //Store message
+    if (messageHistory.size() > MAX_MESSAGE_HISTORY_STORAGE_SIZE) messageHistory.pop_front(); //Remove oldest message
+}
+
+void ChatModule::CreateServer()
+{
+    Network_Server_Init(MAX_CHAT_CONNECTIONS, server_locks, server_info);
+    server_info.dataToSend.setUsername(username);
+    server_info.data_Handler_Func = [this](const ChatObject& data) {this->DataHandler(data);}; //Non-static member function requires lambda
+    if (portLength == 0)
+    {
+        wasNetworkCreated = False;
+        std::unique_lock<std::mutex> lock(gen_err.msg_buffer_mtx);
+        gen_err.msg_buffer = "Enter valid port number";
+        intermediateThread_cv.notify_all();
+        return;
+    }
+    //Debug Port
+    Network_Server_Set_Port(port, server_info);
+    if (!Network_Server_CreateSocket(server_info))
+    {
+        wasNetworkCreated = False;
+        std::unique_lock<std::mutex> lock(gen_err.msg_buffer_mtx);
+        gen_err.msg_buffer = "Socket creation failed";
+        intermediateThread_cv.notify_all();
+        return;
+    }
+    if (std::stoi(port) == 0) //Loopback port option
+    {
+        if (!Network_Server_LoopbackBind(gen_err, server_info))
+        {
+            wasNetworkCreated = False;
+            intermediateThread_cv.notify_all();
+            return;
+        }
+    } else {
+        if (!Network_Server_Bind(gen_err, server_info))
+        {
+            wasNetworkCreated = False;
+            intermediateThread_cv.notify_all();
+            return;
+        }  
+    }
+    if (!Network_Server_InitThreads(gen_err, server_locks, server_info))
+    {
+        wasNetworkCreated = False;
+        Network_Server_Shutdown(server_locks, server_info);
+        intermediateThread_cv.notify_all();
+        return;
+    }
+    wasNetworkCreated = True;
+    intermediateThread_cv.notify_all();
+}
+
+void ChatModule::IntermediateServerCreationThread()
+{
+    isThreadDone = false;
+    loading_thread = std::thread([this]{CreateServer();});
+    std::unique_lock lock(intermediateThread_mtx);
+    intermediateThread_cv.wait(lock);
+    loading_thread.join();
+    isThreadDone = true;
+}
+
+void ChatModule::InitializeServerCreation()
+{
+    intermediateThread = std::thread([this]{IntermediateServerCreationThread();});
+    buttons.clear();
+    areButtonsInitialized = true;
+}
+
+void ChatModule::UpdateServerCreation()
+{
+    if (!isThreadDone) UpdateLoading();
+    else 
+    {
+        intermediateThread.join();
+        if (wasNetworkCreated == True) 
+        {
+            areButtonsInitialized = false;
+            currentMenu = Chat;
+        } else if (wasNetworkCreated == False){
+            areButtonsInitialized = false;
+            currentMenu = Host;
+        }
+    }
+}
+
+void ChatModule::InitializeJoin()
+{
+    buttons.clear();
+    areButtonsInitialized = true;
+    ButtonInfoInit();
+    buttonInfo.text = "Back";
+    buttonInfo.hasTextBox = false;
+    buttonInfo.locationOrientation = Left;
+    buttonInfo.textLocationPoint = {CHATWINDOW_TEXT_RIGHT_X, CHATWINDOW_TEXT_TOP_Y};
+    buttons["Back"] = buttonInfo;
+    buttonInfo.text = "Join";
+    buttonInfo.textLocationPoint.y = CHATWINDOW_TEXT_BOTTOMRIGHT_Y;
+    buttons["Join"] = buttonInfo;
+    buttonInfo.locationOrientation = Center;
+    buttonInfo.hasTextBox = true;
+    rl::Rectangle rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
+    rec.y -= 50;
+    buttonInfo.textBox.location = rec;
+    buttonInfo.textBox.type = Username;
+    buttonInfo.text = "Insert Username Below";
+    buttons["Userbox"] = buttonInfo;
+    rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH - 75, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
+    buttonInfo.textBox.location = rec;
+    buttonInfo.textBox.location.y += 10;
+    buttonInfo.textBox.type = Port;
+    buttonInfo.text = "Insert Host Port Number Below";
+    buttons["Portbox"] = buttonInfo;
+    rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH + 25, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
+    buttonInfo.textBox.location = rec;
+    buttonInfo.textBox.location.y += 70;
+    buttonInfo.textBox.type = Ip;
+    buttonInfo.text = "Insert Host IP Address Below";
+    buttons["Ipbox"] = buttonInfo;
+
+}
+
+void ChatModule::DrawJoin() const
+{
+    DrawTextAboveRect(buttons.at("Userbox"), 2);
+    DrawTextAboveRect(buttons.at("Portbox"), 2);
+    DrawTextAboveRect(buttons.at("Ipbox"), 2);
+    DrawTextLeftOfPoint(buttons.at("Back"));
+    DrawTextLeftOfPoint(buttons.at("Join"));
+    DrawTextBox(buttons.at("Userbox"), Username, true);
+    DrawTextBox(buttons.at("Portbox"), Port, true);
+    DrawTextBox(buttons.at("Ipbox"), Ip, true);
+    if (wasNetworkCreated == Display) DrawTextCenteredAtXY(errorMsgOut, CHATWINDOW_CENTER_X, CHATWINDOW_HEIGHT, 5, 10, rl::RED);
+}
+
+void ChatModule::UpdateJoin() 
+{
+    if (wasNetworkCreated == False) 
+    {
+        errorMsgOut = Network_GetLastError(gen_err);
+        wasNetworkCreated = Display;
+    }
+    ModifyTextBox();
+    CheckButtonCollision();
+    if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT))
+    {
+        bool isE = buttons.at("Userbox").textBox.isEditing;
+        if (buttons.at("Userbox").isMouseHovering && ((!isTyping && !isE) || (isTyping && isE)))
+        {
+            buttons.at("Userbox").textBox.isEditing = !buttons.at("Userbox").textBox.isEditing;
+            isTyping = !isTyping;
+        }
+        isE = buttons.at("Portbox").textBox.isEditing;
+        if (buttons.at("Portbox").isMouseHovering && ((!isTyping && !isE) || (isTyping && isE)))
+        {
+            buttons.at("Portbox").textBox.isEditing = !buttons.at("Portbox").textBox.isEditing;
+            isTyping = !isTyping;
+        }
+        isE = buttons.at("Ipbox").textBox.isEditing;
+        if (buttons.at("Ipbox").isMouseHovering && ((!isTyping && !isE) || (isTyping && isE)))
+        {
+            buttons.at("Ipbox").textBox.isEditing = !buttons.at("Ipbox").textBox.isEditing;
+            isTyping = !isTyping;
+        }
+        if (buttons.at("Back").isMouseHovering && !isTyping)
+        {
+            areButtonsInitialized = false;
+            currentMenu = Select;
+        }
+        if (buttons.at("Join").isMouseHovering && !isTyping)
+        {
+            wasNetworkCreated = Null;
+            areButtonsInitialized = false;
+            isServer = false;
+            currentMenu = ClientCreation;
+        }
     }
 }
 
@@ -64,13 +592,15 @@ void ChatModule::InitializeHost()
     buttons["Create"] = buttonInfo;
     buttonInfo.locationOrientation = Center;
     buttonInfo.hasTextBox = true;
-    rl::Rectangle rec = CenterRect(CHATWINDOW_USERNAMEBOX_WIDTH, CHATWINDOW_USERNAMEBOX_HEIGHT);
+    rl::Rectangle rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
     rec.y -= 20;
     buttonInfo.textBox.location = rec;
     buttonInfo.textBox.type = Username;
     buttonInfo.text = "Insert Username Below";
     buttons["Userbox"] = buttonInfo;
-    buttonInfo.textBox.location.y += 75;
+    rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH - 75, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
+    buttonInfo.textBox.location = rec;
+    buttonInfo.textBox.location.y += 55;
     buttonInfo.textBox.type = Port;
     buttonInfo.text = "Insert Port Number Below";
     buttons["Portbox"] = buttonInfo;
@@ -85,10 +615,16 @@ void ChatModule::DrawHost() const
     DrawTextLeftOfPoint(buttons.at("Create"));
     DrawTextBox(buttons.at("Userbox"), Username, true);
     DrawTextBox(buttons.at("Portbox"), Port, true);
+    if (wasNetworkCreated == Display) DrawTextCenteredAtXY(errorMsgOut, CHATWINDOW_CENTER_X, CHATWINDOW_HEIGHT, 5, 20, rl::RED);
 }
 
 void ChatModule::UpdateHost()
 {
+    if (wasNetworkCreated == False) 
+    {
+        errorMsgOut = Network_GetLastError(gen_err);
+        wasNetworkCreated = Display;
+    }
     ModifyTextBox();
     CheckButtonCollision();
     if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT))
@@ -110,11 +646,19 @@ void ChatModule::UpdateHost()
             areButtonsInitialized = false;
             currentMenu = Select;
         }
+        if (buttons.at("Create").isMouseHovering && !isTyping)
+        {
+            wasNetworkCreated = Null;
+            areButtonsInitialized = false;
+            isServer = true;
+            currentMenu = ServerCreation;
+        }
     }
 }
 
 void ChatModule::InitializeSelect()
 {
+    wasNetworkCreated = Null;
     buttons.clear();
     areButtonsInitialized = true;
     ButtonInfoInit();
@@ -155,14 +699,14 @@ void ChatModule::UpdateSelect()
         if (buttons.at("Settings").isMouseHovering)
         {
             areButtonsInitialized = false;
-            currentMenu = Settings;
+            //currentMenu = Settings;
         }
     }
 }
 
 void ChatModule::DrawLoading() const
 {
-    // What the fuck is going on with the line below
+    // What the heck is going on with the line below
     rl::Rectangle loadingDest = {GetCenterX() + T_loading.textureCenter.x - 100 / 2 + ChatWindow.x, GetCenterY() + T_loading.textureCenter.y - 100 / 2 + ChatWindow.y, 100, 100};
     rl::DrawTexturePro(T_loading.texture, T_loading.sourceRec, loadingDest, T_loading.textureCenter, T_loading.currentAngle, rl::WHITE);
 }
@@ -209,34 +753,9 @@ void ChatModule::UpdateInit()
     }
 }
 
-void ChatModule::UpdateState()
-{
-    Drag();
-    switch (currentMenu)
-    {
-    case Init:
-        UpdateInit();
-        break;
-    case Select:
-        UpdateSelect();
-        break;
-    case Settings:
-        //Settings
-        break;
-    case Host:
-        UpdateHost();
-        break;
-    case Join:
-        //Join
-        break;
-    case Loading:
-        UpdateLoading();
-        break;
-    }
-}
-
 void ChatModule::Drag()
 {
+    if (!allowDrag) return;
     rl::Vector2 mousePos = rl::GetMousePosition();
 
     // Store the current position of the mouse during a left click to use as the reference point for the starting drag position
@@ -312,33 +831,81 @@ void ChatModule::DrawTextAboveRect(const ChatModule_TextInfo &info, int padding)
 }
 void ChatModule::DrawTextBelowRect(const ChatModule_TextInfo &info, int padding) const
 {
-    rl::DrawText(
+    rl::Rectangle tempRec = {
+        info.textBox.location.x + CHATWINDOW_OFFSET_X,
+        info.textBox.location.y + CHATWINDOW_OFFSET_Y,
+        info.textBox.location.width,
+        info.textBox.location.height};
+    if (!info.hasTextBox)
+    {
+        rl::DrawText(
         info.text.c_str(),
-        (info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2,
-        info.textBox.location.y + info.textBox.location.height + padding,
+        (info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2+ CHATWINDOW_OFFSET_X,
+        info.textBox.location.y + info.textBox.location.height + padding+ CHATWINDOW_OFFSET_Y,
         info.font,
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
-    rl::DrawRectangleLinesEx(info.textBox.location, info.textBox.thickness, info.textBox.color);
+        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.color);
+    } else {
+        rl::DrawText(
+        info.text.c_str(),
+        (info.textBox.location.x + info.textBox.location.width / 2) - rl::MeasureText(info.text.c_str(), info.font) / 2+ CHATWINDOW_OFFSET_X,
+        info.textBox.location.y + info.textBox.location.height + padding+ CHATWINDOW_OFFSET_Y,
+        info.font,
+        info.nonSelectColor);
+        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
+    }
 }
 void ChatModule::DrawTextLeftOfRect(const ChatModule_TextInfo &info, int padding) const
 {
-    rl::DrawText(
+    rl::Rectangle tempRec = {
+        info.textBox.location.x + CHATWINDOW_OFFSET_X,
+        info.textBox.location.y + CHATWINDOW_OFFSET_Y,
+        info.textBox.location.width,
+        info.textBox.location.height};
+    if (!info.hasTextBox)
+    {
+        rl::DrawText(
         info.text.c_str(),
-        info.textBox.location.x - rl::MeasureText(info.text.c_str(), info.font) - padding,
-        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2,
+        info.textBox.location.x - rl::MeasureText(info.text.c_str(), info.font) - padding+ CHATWINDOW_OFFSET_X,
+        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2+ CHATWINDOW_OFFSET_Y,
         info.font,
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
-    rl::DrawRectangleLinesEx(info.textBox.location, info.textBox.thickness, info.textBox.color);
+        rl::DrawRectangleLinesEx(info.textBox.location, info.textBox.thickness, info.textBox.color);
+    } else {
+        rl::DrawText(
+        info.text.c_str(),
+        info.textBox.location.x - rl::MeasureText(info.text.c_str(), info.font) - padding+ CHATWINDOW_OFFSET_X,
+        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2+ CHATWINDOW_OFFSET_Y,
+        info.font,
+        info.nonSelectColor);
+        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
+    }
 }
 void ChatModule::DrawTextRightOfRect(const ChatModule_TextInfo &info, int padding) const
 {
-    rl::DrawText(
+    rl::Rectangle tempRec = {
+        info.textBox.location.x + CHATWINDOW_OFFSET_X,
+        info.textBox.location.y + CHATWINDOW_OFFSET_Y,
+        info.textBox.location.width,
+        info.textBox.location.height};
+    if (!info.hasTextBox)
+    {
+        rl::DrawText(
         info.text.c_str(),
-        info.textBox.location.x + info.textBox.location.width + padding,
-        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2,
+        info.textBox.location.x + info.textBox.location.width + padding + CHATWINDOW_OFFSET_X,
+        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2 + CHATWINDOW_OFFSET_Y,
         info.font,
         info.isMouseHovering ? info.selectColor : info.nonSelectColor);
-    rl::DrawRectangleLinesEx(info.textBox.location, info.textBox.thickness, info.textBox.color);
+        rl::DrawRectangleLinesEx(info.textBox.location, info.textBox.thickness, info.textBox.color);
+    } else {
+        rl::DrawText(
+        info.text.c_str(),
+        info.textBox.location.x + info.textBox.location.width + padding + CHATWINDOW_OFFSET_X,
+        (info.textBox.location.y + info.textBox.location.height / 2) - info.font / 2 + CHATWINDOW_OFFSET_Y,
+        info.font,
+        info.nonSelectColor);
+        rl::DrawRectangleLinesEx(tempRec, info.textBox.thickness, info.textBox.isEditing ? info.selectColor : (info.isMouseHovering ? info.selectColor : info.nonSelectColor));
+    }
 }
 
 void ChatModule::DrawTextOnPoint(const ChatModule_TextInfo &info) const
@@ -388,6 +955,7 @@ void ChatModule::ButtonInfoInit()
     buttonInfo.textBox.type = None;
     buttonInfo.textBox.isEditing = false;
     buttonInfo.locationOrientation = Center;
+    errorMsgOut = "";
 }
 
 void ChatModule::CheckButtonCollision()
@@ -451,7 +1019,7 @@ void ChatModule::ModifyTextBox()
             case Username:
                 while (key > 0)
                 {
-                    if ((key >= 32) && (key <= 125) && usernameLength < MAX_USERNAME_LENGTH)
+                    if ((key >= 32) && (key <= 125) && (key != 92) && usernameLength < MAX_USERNAME_LEN)
                     {
                         username[usernameLength] = (char)key;
                         username[usernameLength + 1] = '\0';
@@ -485,10 +1053,41 @@ void ChatModule::ModifyTextBox()
                 }
                 break;
             case Ip:
-
+                while (key > 0)
+                {
+                    if ((((key >= 48) && (key <= 57)) || key == 46) && ipLength < MAX_IP_LENGTH)
+                    {
+                        ip[ipLength] = (char)key;
+                        ip[ipLength + 1] = '\0';
+                        ipLength++;
+                    }
+                    key = rl::GetCharPressed();
+                }
+                if (rl::IsKeyPressed(rl::KEY_BACKSPACE))
+                {
+                    ipLength--;
+                    if (ipLength < 0) ipLength = 0;
+                    ip[ipLength] = '\0';
+                }
                 break;
             case Message:
-
+                while (key > 0)
+                {
+                    if (rl::MeasureText(message, msgFontSize) > CHATWINDOW_MSG_BOX_WIDTH - 20) break; //Disallow long messages
+                    if ((key >= 32) && (key <= 125) && (key != 92) && messageLength < MAX_MSG_LEN)
+                    {
+                        message[messageLength] = (char)key;
+                        message[messageLength + 1] = '\0';
+                        messageLength++;
+                    }
+                    key = rl::GetCharPressed();
+                }
+                if (rl::IsKeyPressed(rl::KEY_BACKSPACE))
+                {
+                    messageLength--;
+                    if (messageLength < 0) messageLength = 0;
+                    message[messageLength] = '\0';
+                }
                 break;
         }
         
@@ -512,7 +1111,7 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
             } else {
                 rl::DrawText(
                     username,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X + 5,
                     info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
                     info.font, info.nonSelectColor);
             }
@@ -528,17 +1127,63 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
             } else {
                 rl::DrawText(
                     port,
-                    info.textBox.location.x + CHATWINDOW_OFFSET_X,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X + 5,
                     info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
                     info.font, info.nonSelectColor);
             }
             break;
         case Ip:
+            if (isCentered)
+            {
+                rl::DrawText(
+                    ip,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(ip, info.font)/2,
+                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
+                    info.font, info.nonSelectColor);
+            } else {
+                rl::DrawText(
+                    ip,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X + 5,
+                    info.textBox.location.y + (float)(info.textBox.location.height - info.font)/2 + CHATWINDOW_OFFSET_Y,
+                    info.font, info.nonSelectColor);
+            }
             break;
         case Message:
+            if (isCentered)
+            {
+                rl::DrawText(
+                    message,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X + info.textBox.location.width/2 - rl::MeasureText(message, msgFontSize)/2,
+                    info.textBox.location.y + (float)(info.textBox.location.height - msgFontSize)/2 + CHATWINDOW_OFFSET_Y,
+                    msgFontSize, info.nonSelectColor);
+            } else {
+                rl::DrawText(
+                    message,
+                    info.textBox.location.x + CHATWINDOW_OFFSET_X + 5,
+                    info.textBox.location.y + (float)(info.textBox.location.height - msgFontSize)/2 + CHATWINDOW_OFFSET_Y,
+                    msgFontSize, info.nonSelectColor);
+            }
             break;
 
     }
+}
+
+void ChatModule::DrawTextCenteredAtXY(const std::string &text, int x, int y, int font, int offsetAbove, rl::Color color) const
+{
+    rl::DrawText(text.c_str(),
+    x + CHATWINDOW_OFFSET_X - rl::MeasureText(text.c_str(), font)/2,
+    y + CHATWINDOW_OFFSET_Y - font/2 - offsetAbove, font, color);
+}
+
+void ChatModule::DrawRecFromButtonInfo(const ChatModule_TextInfo& info) const
+{
+    rl::DrawRectangle(info.rectangle.x + CHATWINDOW_OFFSET_X, info.rectangle.y + CHATWINDOW_OFFSET_Y, info.rectangle.width, info.rectangle.height, info.nonSelectColor);
+}
+
+void ChatModule::DrawRecLinesFromButtonInfo(const ChatModule_TextInfo& info, float linethickness) const
+{
+    rl::Rectangle rec = {info.rectangle.x + CHATWINDOW_OFFSET_X, info.rectangle.y + CHATWINDOW_OFFSET_Y, info.rectangle.width, info.rectangle.height};
+    rl::DrawRectangleLinesEx(rec, linethickness, info.nonSelectColor);
 }
 
 //Assuming DrawTextOnPoint is used
@@ -571,4 +1216,25 @@ void ChatModule::GetRectFromPoint_Right(const ChatModule_TextInfo &info, rl::Rec
 void ChatModule::GetRectFromPoint_Bottom(const ChatModule_TextInfo &info, rl::Rectangle& rec)
 {
 
+}
+
+void ChatModule::DrawChatHistory()
+{
+    std::lock_guard lock(messageHistory_mtx);
+    int i = 0;
+    for (const auto& message : messageHistory)
+    {
+        //Determine font to draw to screen with
+        int font = STANDARD_FONT_SIZE - 2;
+        int textLength = rl::MeasureText(message.data(), font);
+        if (!(textLength < (CHATWINDOW_MSG_BOX_WIDTH - 30)))
+        {
+            font -= 6;
+            textLength = rl::MeasureText(message.data(), font);
+            if (!(textLength < (CHATWINDOW_MSG_BOX_WIDTH - 30))) font -= 8;
+        }
+        //Draw to screen
+        rl::DrawText(message.data(), 10 + CHATWINDOW_OFFSET_X, 20*i+ 10+  CHATWINDOW_OFFSET_Y, font, rl::WHITE);
+        i++;
+    }
 }
