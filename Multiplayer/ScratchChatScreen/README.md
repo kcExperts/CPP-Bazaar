@@ -45,6 +45,7 @@ V0.0:
     - [x] Fix Dragging Breaking Everything
     - [ ] When inputing a username that is exactly MAX_MSG_LEN long, it breaks when displaying to the chat window
     - [ ] Add a better disconnect message when a client disconnects without first sending anything
+    - [ ] Error messages on host and join screens (see timeout on join) are off centered when scaled up
  
 - GUI
     - [x] Add support for different resolutions
