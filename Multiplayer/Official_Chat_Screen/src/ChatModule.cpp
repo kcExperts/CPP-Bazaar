@@ -1044,7 +1044,7 @@ void ChatModule::ModifyTextBox()
             case Port:
                 while (key > 0)
                 {
-                    if ((((key >= 48) && (key <= 57)) || key == 46) && portLength < MAX_PORTNUMBER_LENGTH)
+                    if ((((key >= 48) && (key <= 57)) && !(key == 46)) && portLength < MAX_PORTNUMBER_LENGTH)
                     {
                         port[portLength] = (char)key;
                         port[portLength + 1] = '\0';
