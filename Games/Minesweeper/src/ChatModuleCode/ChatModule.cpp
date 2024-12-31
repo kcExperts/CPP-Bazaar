@@ -24,34 +24,47 @@ ChatModule::ChatModule(int fps)
     size_t count = 0;
     displayError = false;
     timeToLeaveMenu = false;
+    isInitializedByOtherProgram = false;
 }
 
-// ChatModule::ChatModule(int fps, bool isServer, std::string server_ip, std::string server_port, std::string chat_username)
-// {
-//     ChatWindow = rl::Rectangle{CHATWINDOW_START_X, CHATWINDOW_START_Y, CHATWINDOW_WIDTH, CHATWINDOW_HEIGHT};
-//     WindowColor = rl::BLACK;
-//     allowDrag = true;
-//     this->isServer = isServer;
-//     InitLoadingImage();
-//     areButtonsInitialized = false;
-//     usernameLength = 0;
-//     messageLength = 0;
-//     portLength = 0;
-//     ipLength = 0;
-//     isTyping = false;
-//     username[0] = '\0';
-//     message[0] = '\0';
-//     port[0] = '\0';
-//     ip[0] = '\0';
-//     wasNetworkCreated = Null;
-//     Network_InitializeWSA(gen_err);
-//     program_fps = fps;
-//     size_t count = 0;
-//     displayError = false;
-//     timeToLeaveMenu = false;
-//     if (isServer) {currentMenu = ServerCreation;}
-//     else {currentMenu = ClientCreation;}
-// }
+ChatModule::ChatModule(int fps, bool isServer, std::string server_ip, std::string server_port, std::string chat_username)
+{
+    ChatWindow = rl::Rectangle{CHATWINDOW_START_X + 200, CHATWINDOW_START_Y, CHATWINDOW_WIDTH, CHATWINDOW_HEIGHT};
+    WindowColor = rl::BLACK;
+    allowDrag = true;
+    this->isServer = isServer;
+    InitLoadingImage();
+    areButtonsInitialized = false;
+    usernameLength = chat_username.length();
+    messageLength = 0;
+    portLength = server_port.length();
+    if (isServer) {ipLength = 0;}
+    else {ipLength = server_ip.length();}
+    isTyping = false;
+    std::strncpy(username, chat_username.c_str(), sizeof(username) - 1);
+    std::strncpy(port, server_port.c_str(), sizeof(port) - 1);
+    std::strncpy(ip, server_ip.c_str(), sizeof(ip) - 1);
+    username[sizeof(username) - 1] = '\0';
+    message[0] = '\0';
+    port[sizeof(port) - 1] = '\0';
+    if (isServer) {ip[0] = '\0';}
+    else {ip[sizeof(ip) - 1] = '\0';}
+    wasNetworkCreated = Null;
+    Network_InitializeWSA(gen_err);
+    program_fps = fps;
+    size_t count = 0;
+    displayError = false;
+    timeToLeaveMenu = false;
+    if (isServer) {currentMenu = ServerCreation;}
+    else {currentMenu = ClientCreation;}
+    isInitializedByOtherProgram = true;
+    didConnectionWork = -1;
+}
+
+int ChatModule::getDidConnectionWork()
+{
+    return didConnectionWork;
+}
 
 ChatModule::~ChatModule() //Need better implementation
 {
@@ -67,25 +80,6 @@ void ChatModule::Draw()
     rl::DrawRectangle(sst::cxf(ChatWindow.x), sst::cyf(ChatWindow.y), sst::cxf(ChatWindow.width), sst::cyf(ChatWindow.height), WindowColor);
     switch (currentMenu)
     {
-    case Init:
-        if (!areButtonsInitialized) InitializeInit();
-        DrawInit();
-        break;
-    case Select:
-        if (!areButtonsInitialized) InitializeSelect();
-        DrawSelect();
-        break;
-    case Settings:
-        //Settings
-        break;
-    case Host:
-        if (!areButtonsInitialized) InitializeHost();
-        DrawHost();
-        break;
-    case Join:
-        if (!areButtonsInitialized) InitializeJoin();
-        DrawJoin();
-        break;
     case ServerCreation:
         if (!areButtonsInitialized) InitializeServerCreation();
         DrawLoading();
@@ -107,21 +101,6 @@ void ChatModule::UpdateState()
     Drag();
     switch (currentMenu)
     {
-    case Init:
-        UpdateInit();
-        break;
-    case Select:
-        UpdateSelect();
-        break;
-    case Settings:
-        //Settings
-        break;
-    case Host:
-        UpdateHost();
-        break;
-    case Join:
-        UpdateJoin();
-        break;
     case ServerCreation:
         UpdateServerCreation();
         break;
@@ -147,11 +126,6 @@ void ChatModule::InitializeChatScreen()
     rec.y -=30;
     buttonInfo.rectangle = rec;
     buttons["ChatWindowBounds"] = buttonInfo;
-    isServer ? buttonInfo.text = "Close" : buttonInfo.text = "Leave";
-    buttonInfo.hasTextBox = false;
-    buttonInfo.locationOrientation = Left;
-    buttonInfo.textLocationPoint = {CHATWINDOW_TEXT_RIGHT_X, CHATWINDOW_TEXT_BOTTOMRIGHT_Y};
-    buttons["Close"] = buttonInfo;
     buttonInfo.hasTextBox = true;
     buttonInfo.text = "Msg";
     buttonInfo.textBox.color = rl::WHITE;
@@ -179,7 +153,6 @@ void ChatModule::DrawChatScreen()
             fps_counter = 0;
             errorMsgOut.clear();
         }
-        DrawTextLeftOfPoint(buttons.at("Close"));
     } 
     else {DrawLoading();}
 }
@@ -225,20 +198,7 @@ void ChatModule::UpdateChatScreen()
                 buttons.at("MessageBox").textBox.isEditing = !buttons.at("MessageBox").textBox.isEditing;
                 isTyping = !isTyping;
             }
-            if (buttons.at("Close").isMouseHovering && !isTyping)
-            {
-                areButtonsInitialized = false;
-                if (isServer)
-                {
-                    intermediateThread = std::thread([this]{IntermediateServerLeavingThread();});
-                    errorMsgOut = "Server Terminated";
-                } else {
-                    intermediateThread = std::thread([this]{IntermediateClientLeavingThread();});
-                    errorMsgOut = "You have disconnected";
-                }
-                timeToLeaveMenu = true;
-                return;
-            }
+            //CHECK FOR CLOSING MENU
         }
         if (rl::IsKeyPressed(rl::KEY_ENTER))
         {
@@ -350,13 +310,14 @@ void ChatModule::UpdateClientCreation()
     else
     {
         intermediateThread.join();
-        if (wasNetworkCreated == True)
+        if (wasNetworkCreated == True) 
         {
+            didConnectionWork = 1;
             areButtonsInitialized = false;
             currentMenu = Chat;
-        } else if (wasNetworkCreated == False) {
+        } else if (wasNetworkCreated == False){
+            didConnectionWork = 0;
             areButtonsInitialized = false;
-            currentMenu = Join;
         }
     }
 }
@@ -475,231 +436,12 @@ void ChatModule::UpdateServerCreation()
         intermediateThread.join();
         if (wasNetworkCreated == True) 
         {
+            didConnectionWork = 1;
             areButtonsInitialized = false;
             currentMenu = Chat;
         } else if (wasNetworkCreated == False){
+            didConnectionWork = 0;
             areButtonsInitialized = false;
-            currentMenu = Host;
-        }
-    }
-}
-
-void ChatModule::InitializeJoin()
-{
-    buttons.clear();
-    areButtonsInitialized = true;
-    ButtonInfoInit();
-    buttonInfo.text = "Back";
-    buttonInfo.hasTextBox = false;
-    buttonInfo.locationOrientation = Left;
-    buttonInfo.textLocationPoint = {CHATWINDOW_TEXT_RIGHT_X, CHATWINDOW_TEXT_TOP_Y};
-    buttons["Back"] = buttonInfo;
-    buttonInfo.text = "Join";
-    buttonInfo.textLocationPoint.y = CHATWINDOW_TEXT_BOTTOMRIGHT_Y;
-    buttons["Join"] = buttonInfo;
-    buttonInfo.locationOrientation = Center;
-    buttonInfo.hasTextBox = true;
-    rl::Rectangle rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
-    rec.y -= 50;
-    buttonInfo.textBox.location = rec;
-    buttonInfo.textBox.type = Username;
-    buttonInfo.text = "Insert Username Below";
-    buttons["Userbox"] = buttonInfo;
-    rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH - 75, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
-    buttonInfo.textBox.location = rec;
-    buttonInfo.textBox.location.y += 10;
-    buttonInfo.textBox.type = Port;
-    buttonInfo.text = "Insert Host Port Number Below";
-    buttons["Portbox"] = buttonInfo;
-    rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH + 25, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
-    buttonInfo.textBox.location = rec;
-    buttonInfo.textBox.location.y += 70;
-    buttonInfo.textBox.type = Ip;
-    buttonInfo.text = "Insert Host IP Address Below";
-    buttons["Ipbox"] = buttonInfo;
-
-}
-
-void ChatModule::DrawJoin() const
-{
-    DrawTextAboveRect(buttons.at("Userbox"), 2);
-    DrawTextAboveRect(buttons.at("Portbox"), 2);
-    DrawTextAboveRect(buttons.at("Ipbox"), 2);
-    DrawTextLeftOfPoint(buttons.at("Back"));
-    DrawTextLeftOfPoint(buttons.at("Join"));
-    DrawTextBox(buttons.at("Userbox"), Username, true);
-    DrawTextBox(buttons.at("Portbox"), Port, true);
-    DrawTextBox(buttons.at("Ipbox"), Ip, true);
-    if (wasNetworkCreated == Display) DrawTextCenteredAtXY(errorMsgOut, CHATWINDOW_CENTER_X, CHATWINDOW_HEIGHT, 5, 10, rl::RED);
-}
-
-void ChatModule::UpdateJoin() 
-{
-    if (wasNetworkCreated == False) 
-    {
-        errorMsgOut = Network_GetLastError(gen_err);
-        wasNetworkCreated = Display;
-    }
-    ModifyTextBox();
-    CheckButtonCollision();
-    if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT))
-    {
-        bool isE = buttons.at("Userbox").textBox.isEditing;
-        if (buttons.at("Userbox").isMouseHovering && ((!isTyping && !isE) || (isTyping && isE)))
-        {
-            buttons.at("Userbox").textBox.isEditing = !buttons.at("Userbox").textBox.isEditing;
-            isTyping = !isTyping;
-        }
-        isE = buttons.at("Portbox").textBox.isEditing;
-        if (buttons.at("Portbox").isMouseHovering && ((!isTyping && !isE) || (isTyping && isE)))
-        {
-            buttons.at("Portbox").textBox.isEditing = !buttons.at("Portbox").textBox.isEditing;
-            isTyping = !isTyping;
-        }
-        isE = buttons.at("Ipbox").textBox.isEditing;
-        if (buttons.at("Ipbox").isMouseHovering && ((!isTyping && !isE) || (isTyping && isE)))
-        {
-            buttons.at("Ipbox").textBox.isEditing = !buttons.at("Ipbox").textBox.isEditing;
-            isTyping = !isTyping;
-        }
-        if (buttons.at("Back").isMouseHovering && !isTyping)
-        {
-            areButtonsInitialized = false;
-            currentMenu = Select;
-        }
-        if (buttons.at("Join").isMouseHovering && !isTyping)
-        {
-            wasNetworkCreated = Null;
-            areButtonsInitialized = false;
-            isServer = false;
-            currentMenu = ClientCreation;
-        }
-    }
-}
-
-void ChatModule::InitializeHost()
-{
-    buttons.clear();
-    areButtonsInitialized = true;
-    ButtonInfoInit();
-    buttonInfo.hasTextBox = false;
-    buttonInfo.locationOrientation = Left;
-    buttonInfo.text = "Back";
-    buttonInfo.textLocationPoint = {CHATWINDOW_TEXT_RIGHT_X, CHATWINDOW_TEXT_TOP_Y};
-    buttons["Back"] = buttonInfo;
-    buttonInfo.text = "Create";
-    buttonInfo.textLocationPoint.y = CHATWINDOW_TEXT_BOTTOMRIGHT_Y;
-    buttons["Create"] = buttonInfo;
-    buttonInfo.locationOrientation = Center;
-    buttonInfo.hasTextBox = true;
-    rl::Rectangle rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
-    rec.y -= 20;
-    buttonInfo.textBox.location = rec;
-    buttonInfo.textBox.type = Username;
-    buttonInfo.text = "Insert Username Below";
-    buttons["Userbox"] = buttonInfo;
-    rec = CenterRect(CHATWINDOW_DEFAULT_TEXTBOX_WIDTH - 75, CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT);
-    buttonInfo.textBox.location = rec;
-    buttonInfo.textBox.location.y += 55;
-    buttonInfo.textBox.type = Port;
-    buttonInfo.text = "Insert Port Number Below";
-    buttons["Portbox"] = buttonInfo;
-}
-
-//Requires username and port
-void ChatModule::DrawHost() const
-{
-    DrawTextAboveRect(buttons.at("Userbox"), 10);
-    DrawTextAboveRect(buttons.at("Portbox"), 10);
-    DrawTextLeftOfPoint(buttons.at("Back"));
-    DrawTextLeftOfPoint(buttons.at("Create"));
-    DrawTextBox(buttons.at("Userbox"), Username, true);
-    DrawTextBox(buttons.at("Portbox"), Port, true);
-    if (wasNetworkCreated == Display) DrawTextCenteredAtXY(errorMsgOut, CHATWINDOW_CENTER_X, CHATWINDOW_HEIGHT, 5, 20, rl::RED);
-}
-
-void ChatModule::UpdateHost()
-{
-    if (wasNetworkCreated == False) 
-    {
-        errorMsgOut = Network_GetLastError(gen_err);
-        wasNetworkCreated = Display;
-    }
-    ModifyTextBox();
-    CheckButtonCollision();
-    if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT))
-    {
-        bool isE = buttons.at("Userbox").textBox.isEditing;
-        if (buttons.at("Userbox").isMouseHovering && ((!isTyping && !isE) || (isTyping && isE)))
-        {
-            buttons.at("Userbox").textBox.isEditing = !buttons.at("Userbox").textBox.isEditing;
-            isTyping = !isTyping;
-        }
-        isE = buttons.at("Portbox").textBox.isEditing;
-        if (buttons.at("Portbox").isMouseHovering && ((!isTyping && !isE) || (isTyping && isE)))
-        {
-            buttons.at("Portbox").textBox.isEditing = !buttons.at("Portbox").textBox.isEditing;
-            isTyping = !isTyping;
-        }
-        if (buttons.at("Back").isMouseHovering && !isTyping)
-        {
-            areButtonsInitialized = false;
-            currentMenu = Select;
-        }
-        if (buttons.at("Create").isMouseHovering && !isTyping)
-        {
-            wasNetworkCreated = Null;
-            areButtonsInitialized = false;
-            isServer = true;
-            currentMenu = ServerCreation;
-        }
-    }
-}
-
-void ChatModule::InitializeSelect()
-{
-    wasNetworkCreated = Null;
-    buttons.clear();
-    areButtonsInitialized = true;
-    ButtonInfoInit();
-    buttonInfo.text = "Host";
-    buttonInfo.textLocationPoint = {GetCenterX(), GetCenterY() - 50};
-    buttons["Host"] = buttonInfo;
-    buttonInfo.textLocationPoint.y += 50;
-    buttonInfo.text = "Join";
-    buttons["Join"] = buttonInfo;
-    buttonInfo.textLocationPoint.y += 50;
-    buttonInfo.text = "Settings";
-    buttons["Settings"] = buttonInfo;
-}
-
-void ChatModule::DrawSelect() const
-{
-    DrawTextOnPoint(buttons.at("Host"));
-    DrawTextOnPoint(buttons.at("Join"));
-    DrawTextOnPoint(buttons.at("Settings"));
-}
-
-void ChatModule::UpdateSelect()
-{
-    //Verify if any button is being hovered over
-    CheckButtonCollision();
-    if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT))
-    {
-        if (buttons.at("Host").isMouseHovering)
-        {
-            areButtonsInitialized = false;
-            currentMenu = Host;
-        }
-        if (buttons.at("Join").isMouseHovering)
-        {
-            areButtonsInitialized = false;
-            currentMenu = Join;
-        }
-        if (buttons.at("Settings").isMouseHovering)
-        {
-            areButtonsInitialized = false;
-            //currentMenu = Settings;
         }
     }
 }
@@ -730,35 +472,6 @@ void ChatModule::UpdateLoading()
     }
 }
 
-void ChatModule::InitializeInit()
-{
-    buttons.clear();
-    areButtonsInitialized = true;
-    ButtonInfoInit();
-    buttonInfo.textLocationPoint = {GetCenterX(), GetCenterY() - 50};
-    buttonInfo.text = "Welcome to the Chat Module!";
-    buttons["Greeting"] = buttonInfo;
-    buttonInfo.textLocationPoint.y += 100;
-    buttonInfo.text = "Click anywhere inside to begin";
-    buttons["Begin"] = buttonInfo;
-}
-
-void ChatModule::DrawInit() const
-{
-    DrawTextOnPoint(buttons.at("Greeting"));
-    DrawTextOnPoint(buttons.at("Begin"));
-}
-
-void ChatModule::UpdateInit()
-{
-    rl::Rectangle sstChatWindow = {sst::cxf(ChatWindow.x), sst::cyf(ChatWindow.y), sst::cxf(ChatWindow.width), sst::cyf(ChatWindow.height)};
-    if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT) && rl::CheckCollisionPointRec(rl::GetMousePosition(), sstChatWindow))
-    {
-        currentMenu = Select;
-        areButtonsInitialized = false;
-    }
-}
-
 void ChatModule::Drag()
 {
     if (!allowDrag) return;
@@ -780,7 +493,7 @@ void ChatModule::Drag()
         float newWindowY = mousePos.y - LeftClickPos.y;
 
         // Ensure that the user cannot drag menu out of screen area and update positions of window and buttons
-        if (!(newWindowX <= 0.0f || newWindowX + ChatWindow.width >= sst::baseX))
+        if (!(newWindowX <= (float)sst::baseY || newWindowX + ChatWindow.width >= sst::baseX))
         {
             ChatWindow.x = newWindowX;
         }
@@ -1171,6 +884,7 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
                     sst::cx(msgFontSize), info.nonSelectColor);
             }
             break;
+
     }
 }
 
