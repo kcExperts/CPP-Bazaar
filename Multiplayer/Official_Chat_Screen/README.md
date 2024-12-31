@@ -6,6 +6,9 @@ A modular chatscreen implemented using winsock2. Uses threads.
 
 ## Version History
 
+V1.3:  
+    - Disabled allowing "." in port text.  
+
 V1.2:  
     + Fixed resolution scaling for the loading menu, as I had forgotten about it.
 
