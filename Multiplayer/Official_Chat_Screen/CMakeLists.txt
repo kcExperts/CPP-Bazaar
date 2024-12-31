@@ -34,5 +34,12 @@ add_link_options(
     )
 
 add_executable(main src/main.cpp ${PRECOMPILE} ${HEADERS} ${CODEFILES})
-target_link_libraries(main ws2_32 raylib)
+target_link_libraries(main ws2_32 raylib winmm)
 target_precompile_headers(main PRIVATE ${PRECOMPILE})
+
+add_custom_target(copyresources ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/art
+    ${CMAKE_BINARY_DIR}/art
+    COMMENT "Copying resources to the build directory" #folder that has the images
+)
