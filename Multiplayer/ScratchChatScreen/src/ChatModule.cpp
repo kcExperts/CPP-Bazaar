@@ -1178,7 +1178,7 @@ void ChatModule::DrawTextBox(const ChatModule_TextInfo &info, ChatModule_Editing
 void ChatModule::DrawTextCenteredAtXY(const std::string &text, int x, int y, int font, int offsetAbove, rl::Color color) const
 {
     rl::DrawText(text.c_str(),
-    sst::cx(x + CHATWINDOW_OFFSET_X - rl::MeasureText(text.c_str(), font)/2),
+    sst::cx(x + CHATWINDOW_OFFSET_X - (float)rl::MeasureText(text.c_str(), font)/2),
     sst::cy(y + CHATWINDOW_OFFSET_Y - font/2 - offsetAbove), sst::cx(font), color);
 }
 
