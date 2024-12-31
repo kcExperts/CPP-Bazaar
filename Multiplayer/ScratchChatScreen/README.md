@@ -6,17 +6,20 @@ A modular chatscreen implemented using winsock2. Uses threads.
 
 ## Version History
 
+V1.2:  
+    + Fixed resolution scaling for the loading menu, as I had forgotten about it.
+
 V1.1:  
-    + Resolution support has been implemented
+    + Resolution support has been implemented.
 
 V1.0:  
-    + All network code has been implemented  
-    + All client code has been implemented  
-    + All server code has been implemented  
-    + Chat screen has been set  
-    + Loading screen is used between long waiting times  
-    - Settings menu has yet to be implemented  
-    - Resolution support has yet to be implemented
+    + All network code has been implemented.  
+    + All client code has been implemented.  
+    + All server code has been implemented.  
+    + Chat screen has been set.  
+    + Loading screen is used between long waiting times.  
+    - Settings menu has yet to be implemented.  
+    - Resolution support has yet to be implemented.
 
 V0.2:  
     + Added better text writing.  

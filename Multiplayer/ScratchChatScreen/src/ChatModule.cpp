@@ -707,8 +707,13 @@ void ChatModule::UpdateSelect()
 void ChatModule::DrawLoading() const
 {
     // What the heck is going on with the line below
-    rl::Rectangle loadingDest = {GetCenterX() + T_loading.textureCenter.x - 100 / 2 + ChatWindow.x, GetCenterY() + T_loading.textureCenter.y - 100 / 2 + ChatWindow.y, 100, 100};
-    rl::DrawTexturePro(T_loading.texture, T_loading.sourceRec, loadingDest, T_loading.textureCenter, T_loading.currentAngle, rl::WHITE);
+    rl::Rectangle loadingDest = {
+        sst::cxf(GetCenterX() + T_loading.textureCenter.x - 100 / 2 + ChatWindow.x),
+        sst::cyf(GetCenterY() + T_loading.textureCenter.y - 100 / 2 + ChatWindow.y),
+        sst::cxf(100),
+        sst::cyf(100)};
+    rl::DrawTexturePro(T_loading.texture, T_loading.sourceRec, loadingDest,
+        rl::Vector2{sst::cxf(T_loading.textureCenter.x), sst::cyf(T_loading.textureCenter.y)}, T_loading.currentAngle, rl::WHITE);
 }
 
 void ChatModule::UpdateLoading()
