@@ -25,7 +25,7 @@ class Minesweeper
         int tileSelected;
         bool mouseInGame;
         int mineNumFontSize;
-
+        bool isServer;
         int usernameLength;
         int portLength;
         int ipLength;
@@ -82,6 +82,10 @@ class Minesweeper
         void Initialize_Game();
         void Draw_Game();
         void Update_Game();
+
+        void Initialize_AfterScreen();
+        void Draw_AfterScreen();
+        void Update_AfterScreen();
 
         //Utility functions to make my life easier
         void DrawTextOnPoint(const Minesweeper_Text_Info &info) const;

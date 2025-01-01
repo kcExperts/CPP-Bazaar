@@ -7,7 +7,7 @@ Minesweeper::Minesweeper(int fps)
     didWin = false;
     debug_viewer = false;
     isMenuInitialized = false;
-    current_Menu = MM_Host;
+    current_Menu = MM_Init;
     usernameLength = 0;
     portLength = 0;
     ipLength = 0;
@@ -18,6 +18,8 @@ Minesweeper::Minesweeper(int fps)
     difficulty = 1;
     tileSelected = -1;
     mouseInGame = false;
+    isServer = false;
+    std::srand((unsigned) time(NULL));
 }
 
 Minesweeper::~Minesweeper(){}
@@ -51,12 +53,16 @@ void Minesweeper::Draw()
             Draw_ServerLobby();
             break;
         case MM_ClientLobby:
-            //if (!isMenuInitialized) Initialize_ClientLobby();
-            //Draw_ClientLobby();
+            if (!isMenuInitialized) Initialize_ClientLobby();
+            Draw_ClientLobby();
             break;
         case MM_Game:
             if (!isMenuInitialized) Initialize_Game();
             Draw_Game();
+            break;
+        case MM_AfterScreen:
+            if (!isMenuInitialized) Initialize_AfterScreen();
+            Draw_AfterScreen();
             break;
     }
 }
@@ -84,16 +90,120 @@ void Minesweeper::UpdateState()
             Update_ServerLobby();
             break;
         case MM_ClientLobby:
-            //Update_ClientLobby();
+            Update_ClientLobby();
             break;
         case MM_Game:
             Update_Game();
             break;
+        case MM_AfterScreen:
+            Update_AfterScreen();
+            break;
+    }
+}
+
+void Minesweeper::Initialize_ClientLobby()
+{
+    BasicInitialize();
+    button_Info.textLocationPoint = {MINESWEEPER_CENTER_X - 200, MINESWEEPER_CENTER_Y - 200};
+    button_Info.text = "Disconnect";
+    buttons["Leave"] = button_Info;  
+    button_Info.textLocationPoint = {MINESWEEPER_CENTER_X - 200, MINESWEEPER_CENTER_Y};
+    button_Info.nonSelectColor = rl::BLACK;
+    button_Info.selectColor = button_Info.nonSelectColor;
+    button_Info.text = "Waiting for server to begin";
+    buttons["Desc"] = button_Info;
+}
+
+void Minesweeper::Draw_ClientLobby()
+{
+    chatModule->Draw();
+    DrawTextOnPoint(buttons.at("Desc"));
+    DrawTextOnPoint(buttons.at("Leave"));
+}
+
+void Minesweeper::Update_ClientLobby()
+{
+    CheckButtonCollision();
+    if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT))
+    {
+        if (buttons.at("Leave").isMouseHovering && !isTyping)
+        {
+            current_Menu = MM_Join;
+            isMenuInitialized = false;
+            chatModule = nullptr;
+        }
+    }
+}
+
+void Minesweeper::Initialize_AfterScreen()
+{
+    BasicInitialize();
+    button_Info.textLocationPoint = {MINESWEEPER_CENTER_X - 200, MINESWEEPER_CENTER_Y + 100};
+    button_Info.text = "Leave";
+    buttons["Leave"] = button_Info;    
+    if (isServer)
+    {
+        button_Info.text = "Play Again";
+        button_Info.textLocationPoint.y -= 200;
+        buttons["isServer"] = button_Info;
+    } else {
+        button_Info.text = "Waiting for Server to Continue";
+        button_Info.textLocationPoint.y -= 200;
+        button_Info.nonSelectColor = rl::BLACK;
+        button_Info.selectColor = button_Info.nonSelectColor;
+        buttons["isClient"] = button_Info;
+    }
+    if (didWin) button_Info.text = "You have won!";
+    if (isDead) button_Info.text = "You have died!";
+    button_Info.nonSelectColor = rl::BLACK;
+    button_Info.selectColor = button_Info.nonSelectColor;
+    button_Info.textLocationPoint = {MINESWEEPER_CENTER_X - 200, MINESWEEPER_CENTER_Y - 300};
+    buttons["Desc"] = button_Info;
+    Delete_Map();
+}
+
+void Minesweeper::Draw_AfterScreen()
+{
+    chatModule->Draw();
+    DrawTextOnPoint(buttons.at("Desc"));
+    DrawTextOnPoint(buttons.at("Leave"));
+    if (isServer) {DrawTextOnPoint(buttons.at("isServer"));}
+    else {DrawTextOnPoint(buttons.at("isClient"));}
+}
+
+void Minesweeper::Update_AfterScreen()
+{
+    CheckButtonCollision();
+    if (rl::IsMouseButtonPressed(rl::MOUSE_BUTTON_LEFT))
+    {
+        if (isServer)
+        {
+            if (buttons.at("isServer").isMouseHovering && !isTyping)
+                {
+                    current_Menu = MM_ServerLobby;
+                    isMenuInitialized = false;
+                }
+        }
+        if (buttons.at("Leave").isMouseHovering && !isTyping)
+        {
+            if (isServer)
+            {
+                current_Menu = MM_Host;
+                isMenuInitialized = false;
+                chatModule = nullptr;
+            } else {
+                current_Menu = MM_Join;
+                isMenuInitialized = false;
+                chatModule = nullptr;               
+            }
+        }
     }
 }
 
 void Minesweeper::Initialize_Game()
 {
+    didWin = false;
+    isDead = false;
     BasicInitialize();
     Update_Difficulty();
     Generate_Map();
@@ -101,6 +211,10 @@ void Minesweeper::Initialize_Game()
 
 void Minesweeper::Draw_Game()
 {
+    rl::DrawText(rl::TextFormat("Total Mines: %i", total_mines), 
+    sst::cx(1000 - rl::MeasureText(rl::TextFormat("Total Mines: %i", total_mines), MINESWEEPER_STANDARD_FONT)/2),
+    sst::cy(sst::baseY - 100),
+    sst::cx(MINESWEEPER_STANDARD_FONT), rl::BLUE);
     chatModule->Draw();
     Draw_Map();
 }
@@ -119,6 +233,10 @@ void Minesweeper::Update_Game()
             if (map[tileSelected].is_mine)
             {
                 isDead = true;
+                didWin = false;
+                //Send to client
+                current_Menu = MM_AfterScreen;
+                isMenuInitialized = false;
                 return;
             }
         }
@@ -130,14 +248,19 @@ void Minesweeper::Update_Game()
             map[tileSelected].flagged = !map[tileSelected].flagged;
         }
     }
+    if (didWin)
+    {
+        current_Menu = MM_AfterScreen;
+        isMenuInitialized = false;
+    }
+    
 }
 
 void Minesweeper::Initialize_ServerLobby()
 {
     BasicInitialize();
-    button_Info.hasTextBox = false;
     button_Info.text = "Easy";
-    button_Info.textLocationPoint = {MINESWEEPER_CENTER_X, MINESWEEPER_CENTER_Y - 200};
+    button_Info.textLocationPoint = {MINESWEEPER_CENTER_X - 200, MINESWEEPER_CENTER_Y - 200};
     buttons["Easy"] = button_Info;
     button_Info.text = "Medium";
     button_Info.textLocationPoint.y += 100;
@@ -155,9 +278,9 @@ void Minesweeper::Initialize_ServerLobby()
     button_Info.textLocationPoint.y += 100;
     buttons["Start"] = button_Info;
     button_Info.text = "Choose Map Difficulty";
-    button_Info.textLocationPoint = {MINESWEEPER_CENTER_X, MINESWEEPER_CENTER_Y - 300};
     button_Info.nonSelectColor = rl::BLACK;
     button_Info.selectColor = button_Info.nonSelectColor;
+    button_Info.textLocationPoint = {MINESWEEPER_CENTER_X - 200, MINESWEEPER_CENTER_Y - 300};
     buttons["Desc"] = button_Info;
 }
 
@@ -207,6 +330,7 @@ void Minesweeper::Update_ServerLobby()
     }
     for (auto& button : buttons)
     {
+        if (button.first == "Desc") continue;
         button.second.nonSelectColor = rl::BLUE;
     }
     switch(difficulty)
@@ -233,11 +357,17 @@ void Minesweeper::Initialize_CreateClient()
 {
     BasicInitialize();
     chatModule = std::make_unique<ChatModule>(program_fps, false, ip, port, username);
+    button_Info.textLocationPoint = {MINESWEEPER_CENTER_X - 200, MINESWEEPER_CENTER_Y};
+    button_Info.text = "Attempting to Join Server";
+    button_Info.nonSelectColor = rl::BLACK;
+    button_Info.selectColor = button_Info.nonSelectColor;
+    buttons["Waiting"] = button_Info;  
 }
 
 void Minesweeper::Draw_CreateClient()
 {
     chatModule->Draw();
+    DrawTextOnPoint(buttons.at("Waiting"));
 }
 
 void Minesweeper::Update_CreateClient()
@@ -438,6 +568,7 @@ void Minesweeper::Update_Host()
 
 void Minesweeper::Initialize_Init()
 {
+    isServer = false;
     BasicInitialize();
     button_Info.textLocationPoint = {MINESWEEPER_CENTER_X, MINESWEEPER_CENTER_Y};
     button_Info.text = "Host";
@@ -468,11 +599,13 @@ void Minesweeper::Update_Init()
         if (buttons.at("Host").isMouseHovering)
         {
             isMenuInitialized = false;
+            isServer = true;
             current_Menu = MM_Host;
         }
         if (buttons.at("Join").isMouseHovering)
         {
             isMenuInitialized = false;
+            isServer = false;
             current_Menu = MM_Join;
         }
     }
@@ -758,8 +891,8 @@ rl::CLITERAL(Color) Minesweeper::Generate_Color(int mine_number)
 
 void Minesweeper::Update_Difficulty()
 {
-    map_size = 8 + (3 * difficulty);
-    total_mines = 8 + (10 * difficulty);
+    map_size = 8 + (3 * difficulty); 
+    total_mines = 8 + (10 * (difficulty - 1)); // 8 + (10 * difficulty)
     switch(difficulty)
     {
         case 1:
@@ -914,6 +1047,7 @@ void Minesweeper::Draw_Map()
                 sst::cx(mineNumFontSize),
                 Generate_Color(map[i].mine_num)
             );
+            map_reveal++;
         }
         if (map[i].flagged)
         {
@@ -924,6 +1058,16 @@ void Minesweeper::Draw_Map()
     }
     if (cor_flag >= total_mines && map_reveal >= map_size * map_size)
         didWin = true;
+    
+    // rl::DrawText(rl::TextFormat("Cor_Flag: %i", cor_flag), 
+    // sst::cx(1000 - rl::MeasureText(rl::TextFormat("Cor_Flag: %i", cor_flag), MINESWEEPER_STANDARD_FONT)/2),
+    // sst::cy(sst::baseY - 200),
+    // sst::cx(MINESWEEPER_STANDARD_FONT), rl::BLUE);
+
+    // rl::DrawText(rl::TextFormat("map_reveal: %i", map_reveal), 
+    // sst::cx(1000 - rl::MeasureText(rl::TextFormat("map_reveal: %i", map_reveal), MINESWEEPER_STANDARD_FONT)/2),
+    // sst::cy(sst::baseY - 300),
+    // sst::cx(MINESWEEPER_STANDARD_FONT), rl::BLUE);
 }
 
 void Minesweeper::Delete_Map()
