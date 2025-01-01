@@ -153,6 +153,14 @@ void ChatModule::DrawChatScreen()
             fps_counter = 0;
             errorMsgOut.clear();
         }
+        std::scoped_lock lock(server_locks.client_vector_mtx, server_locks.client_vector_capacity_mtx);
+        rl::DrawText(
+            rl::TextFormat("Clients Connected: %i", server_info.client_vector.size()),
+            sst::cx(CHATWINDOW_WIDTH - rl::MeasureText(rl::TextFormat("Clients Connected: %i", server_info.client_vector.size()) ,STANDARD_FONT_SIZE - 5) - 10 + CHATWINDOW_OFFSET_X),
+            sst::cy(CHATWINDOW_HEIGHT - 60 + CHATWINDOW_DEFAULT_TEXTBOX_HEIGHT + CHATWINDOW_OFFSET_Y),
+            sst::cx(STANDARD_FONT_SIZE - 5),
+            rl::RED
+        );
     } 
     else {DrawLoading();}
 }

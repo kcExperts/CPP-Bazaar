@@ -24,7 +24,8 @@ enum Minesweeper_Menus
     MM_CreateClient,
     MM_ServerLobby,
     MM_ClientLobby,
-    MM_Game
+    MM_Game,
+    MM_AfterScreen
 };
 
 struct Minesweeper_Tile_Info

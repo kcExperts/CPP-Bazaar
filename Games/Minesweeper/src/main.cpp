@@ -30,11 +30,7 @@ int main()
         }
         rl::BeginDrawing();
             rl::ClearBackground(rl::LIGHTGRAY);
-
             game.Draw();
-
-            rl::DrawText(rl::TextFormat("FPS: %i", rl::GetFPS()), 100, 100, 10, rl::RED);
-
         rl::EndDrawing();
     }
 
