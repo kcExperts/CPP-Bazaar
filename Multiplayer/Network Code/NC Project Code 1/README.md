@@ -1,4 +1,13 @@
-Contains test code for the networking portion of the ScratchChatScreen.
+### Project Code 1
+
+Contains code for my first attempt at Networking:
+Server:  
+    + Thread for Listening  
+    + Thread for Receiving  
+    + Thread for Sending  
+Client: 
+    + Thread for Receiving  
+    + Thread for Sending  
 
 ## Versions
 V1.0.0:  

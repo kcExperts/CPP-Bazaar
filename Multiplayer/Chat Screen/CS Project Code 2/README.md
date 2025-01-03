@@ -2,7 +2,7 @@
 
 ## Description
 
-A modular chatscreen implemented using winsock2. Uses threads.
+A modular chatscreen. Uses NC Project Code 1
 
 ## Version History
 
