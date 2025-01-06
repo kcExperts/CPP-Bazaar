@@ -6,5 +6,5 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_executable(main)
+add_executable(main main.cpp src/ncCodeTCP.h src/ncCodeTCP.cpp)
 target_link_libraries(main ws2_32)
