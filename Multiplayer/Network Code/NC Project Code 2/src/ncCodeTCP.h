@@ -11,17 +11,38 @@
 #include <atomic>
 #include <algorithm>
 #include <vector>
+#include <iostream>
+#include <thread>
 
-enum Network_Errors
+enum Network_Error_Types
 {
     None,
     Socket_Creation_Failed,
-    Socket_Bind_Failed
+    Socket_Bind_Failed,
+    Listen_Error,
+    Receive_Select_Timeout,
+    Client_Disconnected,
+    Unknown_Receive_Error_Occured,
+    Standard_Receive_Error_Occured,
+    Standard_Broadcast_Error_Occured
+};
+
+struct Network_Error
+{
+    std::mutex mtx;
+    Network_Error_Types type;
+};
+
+struct Socket_WL
+{
+    std::mutex mtx;
+    SOCKET socket;
 };
 
 namespace {
     WSAData NETWORK_WSADATA;
     #define NETWORK_TCP_DATA_OBJ_MAX_ARR_SIZE 1000
+    #define NETWORK_NOBODY -1
 }
 
 std::mutex Network_TCP_Data_Obj_mtx;
@@ -39,6 +60,12 @@ class Network_TCP_Data_Obj
         bool setMessage(const std::string& str);
 };
 
+struct Network_Data_Send_Obj
+{
+    Network_TCP_Data_Obj info;
+    std::mutex mtx;
+};
+
 //Intialize WSA
 bool Network_InitializeWSA();
 
@@ -47,26 +74,32 @@ class Server
 {
     public:
         //Function to handle incoming data. Set before calling initialize.
-        std::function<void(const Network_TCP_Data_Obj& data)> data_Handler_Func;
+        std::function<void(const int& i, const Network_TCP_Data_Obj& data)> data_Handler_Func;
+        std::function<void(const int& i)> client_disconnected;
+        std::function<void(const int& i)> client_connection_error;
+        std::function<void(const int& i)> broadcast_to_client_error;
         //Creates, binds the socket, giving loopback if needed
         bool initialize(const std::string& port_in);
-        void start();
         void close();
         Server(u_short max_connections);
     private:
-        int max_connections;
-        std::mutex server_mtx;
-        SOCKET server;
-        Network_Errors err;
-        std::mutex err_mtx;
-        //Retrieves the last known error message given by the program
-        Network_Errors getLastErrorMsg();
+        std::thread logic;
+        void start(); //Runs on logic thread
+        Network_Data_Send_Obj server_data;
+        size_t max_connections;
+        Socket_WL server;
+        Network_Error err;
         std::vector<SOCKET> client_vector;
         std::mutex client_vector_mtx;
         //Start function modifiers
+        std::atomic<bool> dataReadyToSend;
         std::atomic<bool> canListen;
-        std::atomic<bool> canReceive;
-        std::atomic<bool> canSend;
+        std::atomic<bool> toClose;
+
+        //Retrieves the last known error message given by the program
+        Network_Error getLastErrorMsg();
+        size_t getCurrentServerSize();
+        void Broadcast(int exception, const Network_Data_Send_Obj& info);
 };
 
 class Client
@@ -79,11 +112,9 @@ class Client
         void start();
         void close();
     private:
-        Network_Errors err;
-        std::mutex err_mtx;
+        Network_Error err;
         //Retrieves the last known error message given by the program
-        Network_Errors getLastErrorMsg();
+        Network_Error getLastErrorMsg();
 };
-
 
 #endif

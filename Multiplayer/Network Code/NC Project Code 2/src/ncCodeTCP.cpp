@@ -1,5 +1,13 @@
 #include "ncCodeTCP.h"
 
+namespace { //Utility function
+    void Modify_Error(Network_Error_Types type, Network_Error& err)
+    {
+        std::unique_lock lock(err.mtx);
+        err.type = type;
+    }
+}
+
 Network_TCP_Data_Obj::Network_TCP_Data_Obj()
 {
     timesToSendData = 0;
@@ -42,20 +50,38 @@ bool Network_InitializeWSA()
 Server::Server(u_short max_connections)
 {
     this->max_connections = max_connections;
-    server = INVALID_SOCKET;
+    server.socket = INVALID_SOCKET;
     canListen = false;
-    canReceive = false;
-    canSend = false;
+    dataReadyToSend = false;
+    toClose = false;
+    //Default functions
+    data_Handler_Func = [](const int& i, const Network_TCP_Data_Obj& data) {
+        std::cout << "Client " << i << " sent: " << data.getString() << std::endl;
+    };
+    client_disconnected = [this](const int& i) {
+        Modify_Error(Client_Disconnected, this->err);
+    };
+    client_connection_error = [this](const int& i) {
+        Modify_Error(Standard_Receive_Error_Occured, this->err);
+    };
+    broadcast_to_client_error = [this](const int& i) {
+        Modify_Error(Standard_Broadcast_Error_Occured, this->err);
+    };
+}
+
+size_t Server::getCurrentServerSize()
+{
+    std::unique_lock lock(client_vector_mtx);
+    return client_vector.size();
 }
 
 bool Server::initialize(const std::string& port_in)
 {
-    std::lock_guard general_lock(server_mtx);
-    server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (server == INVALID_SOCKET)
+    std::lock_guard general_lock(server.mtx);
+    server.socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (server.socket == INVALID_SOCKET)
     {
-        std::lock_guard err_lock(err_mtx);
-        err = Socket_Creation_Failed;
+        Modify_Error(Socket_Creation_Failed, err);
         return false;
     }
     std::string ip = "0.0.0.0";
@@ -69,60 +95,109 @@ bool Server::initialize(const std::string& port_in)
     service.sin_family = AF_INET;
     InetPtonA(AF_INET, ip.c_str(), &service.sin_addr.S_un);
     service.sin_port = htons(port);
-    if (bind(server, (SOCKADDR*)&service, sizeof(service)) == SOCKET_ERROR)
+    if (bind(server.socket, (SOCKADDR*)&service, sizeof(service)) == SOCKET_ERROR)
     {
-        std::lock_guard err_lock(err_mtx);
-        err = Socket_Bind_Failed;
-        closesocket(server);
+        Modify_Error(Socket_Bind_Failed, err);
+        closesocket(server.socket);
         return false;
     }
     //Set socket to non-blocking
     u_long mode = 1;
-    ioctlsocket(server, FIONBIO, &mode);
+    ioctlsocket(server.socket, FIONBIO, &mode);
+    logic = std::thread(start);
     return true;
 }
 
-void Server::start()
+void Server::start() //May need to sleep depending on performance
 {
-    //Server is already non-blocking at this point
     canListen = true;
-    canReceive = true;
-    canSend = true;
     size_t client_vector_size;
     u_long mode = 1;
+    Network_Data_Send_Obj data_Received;
+    fd_set data_check;
+    struct timeval select_wait;
+    select_wait.tv_sec = 0;
+    select_wait.tv_usec = 10000;
     while (1)
     {
-        { //Close listening if server is full
-            std::unique_lock lock(client_vector_mtx);
-            client_vector_size = client_vector.size();
-            if (client_vector_size = max_connections) {canListen = false;}
-            else {canListen = true;}
-        }
-        //May need to sleep depending on performance
-        if (canListen)
+        if (toClose) break;
+        //Prevent clients from connecting if the server is full
+        client_vector_size = getCurrentServerSize();
+        if (client_vector_size == max_connections) {canListen = false;}
+        else {canListen = true;}
+        if (canListen) //Listen for connection
         {
-            {
-                std::unique_lock lock(client_vector_mtx);
-                client_vector_size = client_vector.size();
-            }
             SOCKET newClient;
+            std::unique_lock socket_lock(server.mtx);
+            newClient = accept(server.socket, NULL, NULL);
+            if (newClient == INVALID_SOCKET) {Modify_Error(Listen_Error, err);}
+            else
             {
-                std::unique_lock socket_lock(server_mtx);
-                newClient = accept(server, NULL, NULL);
-                //invalid socket for client
-            }
-            //Accepts client if possible
-            ioctlsocket(newClient, FIONBIO, &mode);
-            {
+                ioctlsocket(newClient, FIONBIO, &mode);
                 std::unique_lock lock(client_vector_mtx);
                 client_vector.push_back(newClient);
             }
-        } else if (canReceive) 
+        }
+        //Receive a message
+        SOCKET clientSock;
+        for (int i = 0; i < client_vector_size; i++)
         {
-            
-        } else if (canSend) 
+            std::unique_lock lock(client_vector_mtx);
+            clientSock = client_vector[i];
+            FD_ZERO(&data_check);
+            FD_SET(clientSock, &data_check);
+            int check = select(0, &data_check, NULL, NULL, &select_wait);
+            if (check == 0) {Modify_Error(Receive_Select_Timeout, err);}
+            else 
+            {
+                std::unique_lock lock(client_vector_mtx);
+                int bytes_recv = recv(clientSock, (char*)&data_Received.info, sizeof(data_Received.info), 0);
+                if (bytes_recv == 0) //Client disconnected
+                {
+                    client_disconnected(i);
+                    shutdown(clientSock, SD_BOTH);
+                    closesocket(clientSock);
+                    client_vector.erase(client_vector.begin() + i);
+                    if (client_vector.empty()) break;
+                    i--;
+                    client_vector_size--; //Prevents WSAENOTSOCK (10038) error
+                } else if (bytes_recv == SOCKET_ERROR)
+                {
+                    int ws_err = WSAGetLastError();
+                    if (ws_err != WSAEWOULDBLOCK && ws_err != 0) client_connection_error(i);
+                    else {Modify_Error(Unknown_Receive_Error_Occured, err);}
+                } else 
+                {
+                    data_Handler_Func(i, data_Received.info);
+                    Broadcast(i, data_Received);
+                }
+            }
+        }
+        //Send a message
+        if (dataReadyToSend)
         {
-
+            Broadcast(NETWORK_NOBODY, server_data);
+            dataReadyToSend = false;
         }
     }
+}
+
+void Server::Broadcast(int exception, const Network_Data_Send_Obj& info)
+{
+    std::unique_lock gen_lock(info.mtx);
+    size_t server_size = getCurrentServerSize();
+    for (int i = 0; i < server_size; i++)
+    {
+        if (i == exception) continue;
+        std::unique_lock vec_lock(client_vector_mtx);
+        SOCKET clientSock = client_vector[i];
+        int byte_Count = send(clientSock, (char*)&info, sizeof(info), 0);
+        if (byte_Count == SOCKET_ERROR || byte_Count == 0) {broadcast_to_client_error(i);}
+    }
+}
+
+void Server::close()
+{
+    toClose = true;
+    logic.join();
 }
