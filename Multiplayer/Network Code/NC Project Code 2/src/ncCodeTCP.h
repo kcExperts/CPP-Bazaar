@@ -17,6 +17,7 @@
 enum Network_Error_Types
 {
     None,
+    No_New_Error,
     Socket_Creation_Failed,
     Socket_Bind_Failed,
     Listen_Error,
@@ -24,7 +25,15 @@ enum Network_Error_Types
     Client_Disconnected,
     Unknown_Receive_Error_Occured,
     Standard_Receive_Error_Occured,
-    Standard_Broadcast_Error_Occured
+    Standard_Broadcast_Error_Occured,
+    Connection_Did_Not_Block,
+    Connection_Timeout,
+    Connection_Failed,
+    Disconnected_From_Server,
+    Receive_Error_Occured,
+    Message_Send_Failed,
+    Server_Closed
+
 };
 
 struct Network_Error
@@ -43,6 +52,7 @@ namespace {
     WSAData NETWORK_WSADATA;
     #define NETWORK_TCP_DATA_OBJ_MAX_ARR_SIZE 1000
     #define NETWORK_NOBODY -1
+    #define CLIENT_CONNECT_WAIT_TIME_S 5
 }
 
 std::mutex Network_TCP_Data_Obj_mtx;
@@ -82,6 +92,8 @@ class Server
         bool initialize(const std::string& port_in);
         void close();
         Server(u_short max_connections);
+        //Retrieves the last known error message given by the program
+        Network_Error_Types getLastErrorMsg();
     private:
         std::thread logic;
         void start(); //Runs on logic thread
@@ -96,9 +108,9 @@ class Server
         std::atomic<bool> canListen;
         std::atomic<bool> toClose;
 
-        //Retrieves the last known error message given by the program
-        Network_Error getLastErrorMsg();
+        //Retrieves the current number of clients in the server
         size_t getCurrentServerSize();
+        //Broadcasts a message to all clients except for an exception
         void Broadcast(int exception, const Network_Data_Send_Obj& info);
 };
 
@@ -109,12 +121,19 @@ class Client
         //Function to handle incoming data. Set before calling initialize.
         std::function<void(const Network_TCP_Data_Obj& data)> data_Handler_Func;
         bool initialize(const std::string& ip_in, const std::string& port_in);
-        void start();
         void close();
+        Client();
+        std::atomic<bool> dataReadyToSend;
     private:
+        Socket_WL client;
         Network_Error err;
         //Retrieves the last known error message given by the program
-        Network_Error getLastErrorMsg();
+        Network_Error_Types getLastErrorMsg();
+        void start();
+        std::thread logic;
+        std::atomic<bool> isOperational;
+        Network_Data_Send_Obj client_data;
+        std::atomic<bool> isConnected;
 };
 
 #endif
