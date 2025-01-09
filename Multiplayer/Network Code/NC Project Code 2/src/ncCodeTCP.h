@@ -20,10 +20,9 @@ enum Network_Error_Types
     No_New_Error,
     Socket_Creation_Failed,
     Socket_Bind_Failed,
-    Listen_Error,
+    Initialize_Listen_Failed,
     Receive_Select_Timeout,
     Client_Disconnected,
-    Unknown_Receive_Error_Occured,
     Standard_Receive_Error_Occured,
     Standard_Broadcast_Error_Occured,
     Connection_Did_Not_Block,
@@ -55,7 +54,7 @@ namespace {
     #define CLIENT_CONNECT_WAIT_TIME_S 5
 }
 
-std::mutex Network_TCP_Data_Obj_mtx;
+extern std::mutex Network_TCP_Data_Obj_mtx;
 
 class Network_TCP_Data_Obj
 {
@@ -84,7 +83,7 @@ class Server
 {
     public:
         //Function to handle incoming data. Set before calling initialize.
-        std::function<void(const int& i, const Network_TCP_Data_Obj& data)> data_Handler_Func;
+        std::function<void(const int& i, Network_TCP_Data_Obj& data)> data_Handler_Func;
         std::function<void(const int& i)> client_disconnected;
         std::function<void(const int& i)> client_connection_error;
         std::function<void(const int& i)> broadcast_to_client_error;
@@ -94,24 +93,27 @@ class Server
         Server(u_short max_connections);
         //Retrieves the last known error message given by the program
         Network_Error_Types getLastErrorMsg();
+        void dataReadyToSend();
     private:
-        std::thread logic;
-        void start(); //Runs on logic thread
-        Network_Data_Send_Obj server_data;
+        std::thread listen_and_receive_thread;
+        std::thread broadcast_thread;
+        void listen_and_receive();
+        void send_to_clients();
+        Network_Data_Send_Obj data;
         size_t max_connections;
         Socket_WL server;
         Network_Error err;
         std::vector<SOCKET> client_vector;
         std::mutex client_vector_mtx;
         //Start function modifiers
-        std::atomic<bool> dataReadyToSend;
         std::atomic<bool> canListen;
         std::atomic<bool> toClose;
+        std::condition_variable dataReadyToSend_cv;
 
         //Retrieves the current number of clients in the server
         size_t getCurrentServerSize();
         //Broadcasts a message to all clients except for an exception
-        void Broadcast(int exception, const Network_Data_Send_Obj& info);
+        void Broadcast(int exception, Network_Data_Send_Obj& info);
 };
 
 class Client
@@ -119,21 +121,24 @@ class Client
     public:
         std::mutex connect_mtx;
         //Function to handle incoming data. Set before calling initialize.
-        std::function<void(const Network_TCP_Data_Obj& data)> data_Handler_Func;
+        std::function<void(Network_TCP_Data_Obj& data)> data_Handler_Func;
         bool initialize(const std::string& ip_in, const std::string& port_in);
         void close();
         Client();
-        std::atomic<bool> dataReadyToSend;
+        //Retrieves the last known error message given by the program
+        Network_Error_Types getLastErrorMsg();
+        Network_Data_Send_Obj data;
+        void dataReadyToSend();
     private:
         Socket_WL client;
         Network_Error err;
-        //Retrieves the last known error message given by the program
-        Network_Error_Types getLastErrorMsg();
-        void start();
-        std::thread logic;
+        void receive();
+        void send_to_server();
+        std::thread receive_thread;
+        std::thread send_thread;
         std::atomic<bool> isOperational;
-        Network_Data_Send_Obj client_data;
         std::atomic<bool> isConnected;
+        std::condition_variable dataReadyToSend_cv;
 };
 
 #endif
