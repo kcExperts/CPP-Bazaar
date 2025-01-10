@@ -150,29 +150,29 @@ void Server::listen_and_receive()
                     std::unique_lock lock(client_vector_mtx); 
                     client_vector.push_back(std::make_pair("", newClient));
                 }
-                // std::this_thread::sleep_for(std::chrono::milliseconds(1)); //Wait 1ms before continuing
-                // int temp = client_vector_size;
-                // int bytes_recv = ReceiveFrom(temp, data_Received);
-                // if (bytes_recv == 0 || bytes_recv == -1)
-                // {
-                //     std::unique_lock vec_lock(client_vector_mtx);
-                //     SOCKET clientSock = client_vector[temp].second;
-                //     data_Received.info.setMessage("&B"); //Send bad code
-                //     int byte_Count = send(clientSock, (char*)&data_Received, sizeof(data_Received), 0);
-                //     Disconnect(temp);
-                // } else if (data_Received.info.getString().size() > MAX_USERNAME_STRING_SIZE || data_Received.info.getString().size() < 1) {
-                //     std::unique_lock vec_lock(client_vector_mtx); //Prevent username overflow and notify client
-                //     SOCKET clientSock = client_vector[temp].second;
-                //     data_Received.info.setMessage("&B"); //Send bad code
-                //     int byte_Count = send(clientSock, (char*)&data_Received, sizeof(data_Received), 0);
-                //     Disconnect(temp);
-                // } else {//Update username
-                //     std::unique_lock lock(client_vector_mtx); 
-                //     SOCKET clientSock = client_vector[temp].second;
-                //     data_Received.info.setMessage("&G"); //Send good code
-                //     int byte_Count = send(clientSock, (char*)&data_Received, sizeof(data_Received), 0);
-                //     client_vector.at(temp).first = data_Received.info.getString();
-                // }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1)); //Wait 1ms before continuing
+                int temp = client_vector_size;
+                int bytes_recv = ReceiveFrom(temp, data_Received);
+                if (bytes_recv == 0 || bytes_recv == -1)
+                {
+                    std::unique_lock vec_lock(client_vector_mtx);
+                    SOCKET clientSock = client_vector[temp].second;
+                    data_Received.info.setMessage("&B"); //Send bad code
+                    int byte_Count = send(clientSock, (char*)&data_Received, sizeof(data_Received), 0);
+                    Disconnect(temp);
+                } else if (data_Received.info.getString().size() > MAX_USERNAME_STRING_SIZE || data_Received.info.getString().size() < 1) {
+                    std::unique_lock vec_lock(client_vector_mtx); //Prevent username overflow and notify client
+                    SOCKET clientSock = client_vector[temp].second;
+                    data_Received.info.setMessage("&B"); //Send bad code
+                    int byte_Count = send(clientSock, (char*)&data_Received, sizeof(data_Received), 0);
+                    Disconnect(temp);
+                } else {//Update username
+                    std::unique_lock lock(client_vector_mtx); 
+                    client_vector.at(temp).first = data_Received.info.getString();
+                    SOCKET clientSock = client_vector[temp].second;
+                    data_Received.info.setMessage("&G"); //Send good code
+                    int byte_Count = send(clientSock, (char*)&data_Received, sizeof(data_Received), 0);
+                }
             }
         }
         //Receive a message
@@ -343,31 +343,35 @@ bool Client::initialize(const std::string& ip_in, const std::string& port_in, co
     isOperational = true;
     //Send username to server
     receive_thread = std::thread(receive, this, true); //Open receive thread for initialization mode
-    // data.info.setMessage(username);
-    // int byteCount = send(client.socket, (char*)&data.info, sizeof(data.info), 0);
-    // if (byteCount == SOCKET_ERROR)
-    // {
-    //     if (WSAGetLastError())
-    //     {
-    //         Modify_Error(Disconnected_From_Server, err);
-    //         std::cout << "HERE133" << std::endl;
-    //         receive_thread.join();
-    //         std::cout << "HERE233" << std::endl;
-    //         return false;
-    //     } else {
-    //         Modify_Error(Message_Send_Failed, err);
-    //         std::cout << "HERE122" << std::endl;
-    //         receive_thread.join();
-    //         std::cout << "HERE222" << std::endl;
-    //         return false;
-    //     }
-    // } else if (byteCount == 0) {
-    //     Modify_Error(Server_Closed, err);
-    //     std::cout << "HERE111" << std::endl;
-    //     receive_thread.join();
-    //     std::cout << "HERE211" << std::endl;
-    //     return false;
-    // }
+    data.info.setMessage(username);
+    int byteCount;
+    {
+        std::unique_lock lock(client.mtx);
+        byteCount = send(client.socket, (char*)&data.info, sizeof(data.info), 0);
+    }
+    if (byteCount == SOCKET_ERROR)
+    {
+        if (WSAGetLastError())
+        {
+            Modify_Error(Disconnected_From_Server, err);
+            std::cout << "HERE133" << std::endl;
+            receive_thread.join();
+            std::cout << "HERE233" << std::endl;
+            return false;
+        } else {
+            Modify_Error(Message_Send_Failed, err);
+            std::cout << "HERE122" << std::endl;
+            receive_thread.join();
+            std::cout << "HERE222" << std::endl;
+            return false;
+        }
+    } else if (byteCount == 0) {
+        Modify_Error(Server_Closed, err);
+        std::cout << "HERE111" << std::endl;
+        receive_thread.join();
+        std::cout << "HERE211" << std::endl;
+        return false;
+    }
     std::cout << "HERE1" << std::endl;
     receive_thread.join();
     std::cout << "HERE2" << std::endl;
@@ -386,7 +390,8 @@ void Client::receive(bool initialize)
     //Initialization variable
     u_short time = 0;
     //Receive from server
-    Network_Data_Send_Obj data_Received;
+    //Network_Data_Send_Obj data_Received;
+    Network_TCP_Data_Obj data_Received;
     fd_set data_check;
     struct timeval select_wait;
     select_wait.tv_sec = 0;
@@ -404,23 +409,24 @@ void Client::receive(bool initialize)
             }
         }
         //Receiving data
-        FD_ZERO(&data_check);
-        FD_SET(client.socket, &data_check);
-        int check = select(0, &data_check, NULL, NULL, &select_wait);
-        if (check > 0) //Select has seen something
+        int check = 0;
         {
-
-
-            //THE PROBLEM IS HERE!!!!!!!!!!!!!!! CALLING RECV BREAKS EVERYTHING
-            int bytesReceived = recv(client.socket, (char*)&data_Received, sizeof(data_Received), 0);
-            // std::cout << "ERRORROROROR:" << WSAGetLastError() << std::endl;
-            // std::cout << "bytes_RECV:" << bytesReceived << std::endl;
-            std::terminate();
-
-
-
-
-
+            std::unique_lock lock(client.mtx);
+            FD_ZERO(&data_check);
+            FD_SET(client.socket, &data_check);
+            check = select(0, &data_check, NULL, NULL, &select_wait);
+        }
+        if (check > 0) //Select has seen something also might need ==0
+        {
+            int bytesReceived;
+            {
+                std::unique_lock lock(client.mtx);
+                //THE PROBLEM IS HERE!!!!!!!!!!!!!!! CALLING RECV BREAKS EVERYTHING
+                bytesReceived = recv(client.socket, (char*)&data_Received, sizeof(data_Received), 0);
+                // std::cout << "ERRORROROROR:" << WSAGetLastError() << std::endl;
+                // std::cout << "bytes_RECV:" << bytesReceived << std::endl;
+                //std::terminate();
+            }
             if (bytesReceived == 0)
             {
                 Modify_Error(Disconnected_From_Server, err);
@@ -437,12 +443,11 @@ void Client::receive(bool initialize)
                 }
                 continue;
             }
-            data_Handler_Func(data_Received.info);
             if (!initialize)
             {
-                data_Handler_Func(data_Received.info);
+                data_Handler_Func(data_Received);
             } else {
-                std::string code = data_Received.info.getString();
+                std::string code = data_Received.getString();
                 if (code == "&G") {
                     break;
                 }
@@ -451,10 +456,31 @@ void Client::receive(bool initialize)
                     break;
                 }
             }
+            std::cout << "Bytes: " << bytesReceived << std::endl;
+            // data_Handler_Func(data_Received.info);
+            // if (!initialize)
+            // {
+            //     data_Handler_Func(data_Received.info);
+            // } else {
+            //     std::string code = data_Received.info.getString();
+            //     if (code == "&G") {
+            //         break;
+            //     }
+            //     else {
+            //         isOperational = false;
+            //         break;
+            //     }
+            // }
         }
     }
     std::cout << "Ending RECEIVE THREAD" << std::endl;
 }
+
+// void testReceive(Socket_WL& client)
+// {
+//     Network_Data_Send_Obj data_Received;
+
+// }
 
 void Client::send_to_server()
 {

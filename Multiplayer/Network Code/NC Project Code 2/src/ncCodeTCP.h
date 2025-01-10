@@ -96,12 +96,13 @@ class Server
         void dataReadyToSend();
         //Retrieves the current number of clients in the server
         size_t getCurrentServerSize();
+
+        Network_Data_Send_Obj data;
     private:
         std::thread listen_and_receive_thread;
         std::thread broadcast_thread;
         void listen_and_receive();
         void send_to_clients();
-        Network_Data_Send_Obj data;
         size_t max_connections;
         Socket_WL server;
         Network_Error err;
@@ -143,5 +144,8 @@ class Client
         std::atomic<bool> isConnected;
         std::condition_variable dataReadyToSend_cv;
 };
+
+void testReceive(Socket_WL& client);
+
 
 #endif
