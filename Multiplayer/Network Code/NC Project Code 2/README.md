@@ -9,10 +9,10 @@ This contains improved TCP network code that runs on fewer threads.
 # FIX
 
 - If client username too long and connects to server, server breaks
-- If client successfully connects with good username, client stuck on error 7
+- If client successfully connects with good username, server stuck on error 7
 
 
-- Client program never terminates peacefully, it is due to joining of the receive_thread
+- Client program never terminates peacefully if server sends it a message
 static inline int
 __gthread_mutex_destroy (__gthread_mutex_t *__mutex)
 {

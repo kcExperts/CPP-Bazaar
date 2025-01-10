@@ -21,12 +21,18 @@ int main()
         }
         std::cout << "Server Open" << std::endl;
         int lol = 0;
-        while (lol < 10)
+        while (lol < 5)
         {
             std::this_thread::sleep_for(std::chrono::seconds(1));
             std::cout << "Error: " << server.getLastErrorMsg() << std::endl;
             std::cout << "Size: " << server.getCurrentServerSize() << std::endl;
             lol++;
+            if (lol == 3)
+            {
+                std::cout << "Sending Message" << std::endl;
+                server.data.info.setMessage("Hello!");
+                server.dataReadyToSend();
+            }
         }
         server.close();
         std::cout << "Server Closed" << std::endl;

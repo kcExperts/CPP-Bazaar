@@ -11,7 +11,7 @@ SET(PRECOMPILE
 )
 
 SET(HEADERS
-    raymath.h
+   # raymath.h
 )
 
 SET(CODEFILES

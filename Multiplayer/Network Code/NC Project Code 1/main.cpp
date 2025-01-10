@@ -22,7 +22,8 @@ int main(void)
         if (!Network_Server_LoopbackBind(gen_err, server_info)) return 1;
         if (!Network_Server_InitThreads(gen_err, server_locks, server_info)) return 1;
         int lol = 0;
-        for (;;)
+        //for (;;)
+        while(lol < 10)
         {
             lol++;
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -31,6 +32,11 @@ int main(void)
             std::unique_lock<std::mutex> lockB(server_locks.client_vector_capacity_mtx);
             std::cout << "Server Size: " << server_info.client_vector.size() << std::endl;
             std::cout << Network_GetLastError(gen_err) << std::endl;
+            if (lol == 5)
+            {
+                server_info.dataToSend.setMessage("Hello");
+                Network_Server_SendMsg(server_locks);
+            }
         }
         Network_Server_Shutdown(server_locks, server_info);
     }
