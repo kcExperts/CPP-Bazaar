@@ -31,15 +31,18 @@ enum Network_Error_Types
     Disconnected_From_Server,
     Receive_Error_Occured,
     Message_Send_Failed,
-    Server_Closed
+    Server_Closed,
+    Code_Could_Not_Be_Sent
 };
 
+//Holds the network error type and a mutex
 struct Network_Error
 {
     std::mutex mtx;
     Network_Error_Types type;
 };
 
+//Contains the Socket With a Lock
 struct Socket_WL
 {
     std::mutex mtx;
@@ -49,13 +52,14 @@ struct Socket_WL
 namespace {
     WSAData NETWORK_WSADATA;
     #define NETWORK_TCP_DATA_OBJ_MAX_ARR_SIZE 1000
-    #define NETWORK_NOBODY -1
     #define CLIENT_CONNECT_WAIT_TIME_S 5
-    #define MAX_USERNAME_STRING_SIZE 10
+    #define NETWORK_MAX_IDENTIFIER_STRING_SIZE 100
+    #define NETWORK_MAX_CODE_SIZE 20
+    #define NETWORK_CODE_SEPARATOR ':'
+    #define NETWORK_CODE_GOOD std::string("G") + NETWORK_CODE_SEPARATOR
 }
 
-//extern std::mutex Network_TCP_Data_Obj_mtx;
-
+//Object that is sent through through the sockets
 class Network_TCP_Data_Obj
 {
     private:
@@ -69,83 +73,146 @@ class Network_TCP_Data_Obj
         bool setMessage(const std::string& str);
 };
 
-struct Network_Data_Send_Obj
+//Contains the vector with all the clients, a lock and the size of the vector
+struct Server_Client_Vector
 {
-    Network_TCP_Data_Obj info;
+    std::vector<std::pair<std::string, SOCKET>> socket;
     std::mutex mtx;
+    size_t size{0};
 };
 
-//Intialize WSA
+enum Network_Function_Mode
+{
+    SERVER_INDIVIDUAL,
+    SERVER_INDEXED,
+};
+
+//Intializes WSA, should only be called once. Returns true if success and false if failure.
 bool Network_InitializeWSA();
 
-//Server --
 class Server
 {
     public:
-        //Function to handle incoming data. Set before calling initialize.
+        /// Handles data received from a client. 
+        /// 
+        /// \param i The client identifier index. Use in get_identifier() to retrieve the client's identifier.
+        /// \param data An object that contains data to be handled
+        /// 
+        /// This function can be set to a custom handler using the `data_Handler_Func` function pointer. If no custom function is provided, the default handler will print the client identifier and the data to the screen.
         std::function<void(const int& i, Network_TCP_Data_Obj& data)> data_Handler_Func;
+        /// Handles when a client is diconnected from the server. 
+        /// 
+        /// \param i The client identifier index. Use in get_identifier() to retrieve the client's identifier.
+        /// 
+        /// This function can be set to a custom handler using the `client_disconnected` function pointer. If no custom function is provided, the default handler will log the event under `Client_Disconnected` code, which can be retrived by `get_last_error_msg`.
         std::function<void(const int& i)> client_disconnected;
+        /// Handles when a client encounters a connection error. 
+        /// 
+        /// \param i The client identifier index. Use in get_identifier() to retrieve the client's identifier.
+        /// 
+        /// This function can be set to a custom handler using the `client_disconnected` function pointer. If no custom function is provided, the default handler will log the event under `Standard_Receive_Error_Occured` code, which can be retrived by `get_last_error_msg`.
         std::function<void(const int& i)> client_connection_error;
+        /// Handles when the server encounters a broadcast error. 
+        /// 
+        /// \param i The client identifier index. Use in get_identifier() to retrieve the client's identifier.
+        /// 
+        /// This function can be set to a custom handler using the `client_disconnected` function pointer. If no custom function is provided, the default handler will log the event under `Standard_Broadcast_Error_Occured` code, which can be retrived by `get_last_error_msg`.
         std::function<void(const int& i)> broadcast_to_client_error;
         //Creates, binds the socket, giving loopback if needed
-        bool initialize(const std::string& port_in);
+        bool initialize(const std::string& port_in, const std::string& code);
         void close();
-        Server(u_short max_connections);
+        Server(u_short max_connections, bool SREO_flag);
         //Retrieves the last known error message given by the program
-        Network_Error_Types getLastErrorMsg();
+        Network_Error_Types get_last_error_msg();
         void dataReadyToSend();
         //Retrieves the current number of clients in the server
         size_t getCurrentServerSize();
-
-        Network_Data_Send_Obj data;
+        std::string get_identifier(const int& i);
+        Network_TCP_Data_Obj data;
     private:
         std::thread listen_and_receive_thread;
         std::thread broadcast_thread;
-        void listen_and_receive();
-        void send_to_clients();
+        void listen_and_receive(Socket_WL& server, Server_Client_Vector& client_vector);
+        void send_to_clients(Server_Client_Vector& client_vector, Network_TCP_Data_Obj& data_to_send);
         size_t max_connections;
         Socket_WL server;
         Network_Error err;
-        std::vector<std::pair<std::string, SOCKET>> client_vector;
-        std::mutex client_vector_mtx;
+        Server_Client_Vector client_vector;
         //Start function modifiers
         std::atomic<bool> canListen;
         std::atomic<bool> toClose;
-        std::condition_variable dataReadyToSend_cv;
-
-        //Broadcasts a message to all clients except for an exception
-        void Broadcast(int exception, Network_Data_Send_Obj& info);
-        void Disconnect(int& i);
-        //Returns the number of bytes received from client i in the client_vector
-        int ReceiveFrom(int i, Network_Data_Send_Obj& data_received);
+        std::string code;
+        bool SREO_flag;
+        std::mutex data_mtx;
+        std::condition_variable data_cv;
 };
+
+enum Network_Client_Receive_Mode
+{
+    INITIALIZE,
+    GENERAL
+};  
+
 
 class Client
 {
     public:
-        std::mutex connect_mtx;
-        //Function to handle incoming data. Set before calling initialize.
+        /// Handles data received from the server. 
+        /// 
+        /// \param data An object that contains data to be handled
+        /// 
+        /// This function can be set to a custom handler using the `data_Handler_Func` function pointer. If no custom function is provided, the default handler will print the broadcasted message to the screen.
         std::function<void(Network_TCP_Data_Obj& data)> data_Handler_Func;
-        bool initialize(const std::string& ip_in, const std::string& port_in, const std::string& username);
+        bool initialize(const std::string& ip_in, const std::string& port_in, const std::string& identifier, const std::string& code);
         void close();
         Client();
         //Retrieves the last known error message given by the program
-        Network_Error_Types getLastErrorMsg();
-        Network_Data_Send_Obj data;
+        Network_Error_Types get_last_error_msg();
+
+        Network_TCP_Data_Obj data;
+        std::mutex data_mtx;
+        std::condition_variable data_cv;
+        
         void dataReadyToSend();
     private:
         Socket_WL client;
         Network_Error err;
-        void receive(bool initialize);
-        void send_to_server();
+        void receive(Network_Client_Receive_Mode mode, Socket_WL& client);
+        void send_to_server(Socket_WL& client, Network_TCP_Data_Obj& data_to_send);
         std::thread receive_thread;
         std::thread send_thread;
-        std::atomic<bool> isOperational;
         std::atomic<bool> isConnected;
-        std::condition_variable dataReadyToSend_cv;
+        bool send_code_data(const std::string& identifier, const std::string& code);
+        std::string code;
+        std::string identifier;
+        std::mutex wsa_mtx;
 };
 
-void testReceive(Socket_WL& client);
 
+/// Receives data from a socket (server exclusive).
+/// 
+/// \param mode Specifies whether it scans through the client_vector (SERVER_INDEXED) or uses the provided socket (SERVER_INDIVIDUAL).
+/// \param sock Used only if SERVER_INDIVIDUAL mode is selected.
+/// \param index Used only if SERVER_INDEXED mode is selected.
+/// \param client_vector The vector that contains the clients, should always be supplied even if not used.
+/// \param data_recv An object that returns the received data.
+/// \return The number of bytes received from the recv function.
+int receive_from_socket(Network_Function_Mode mode, SOCKET* sock , size_t index, Server_Client_Vector* client_vector, Network_TCP_Data_Obj& data_recv);
+/// Disconnects a socket from the server.
+/// 
+/// \param mode Specifies whether it scans through the client_vector (SERVER_INDEXED) or uses the provided socket (SERVER_INDIVIDUAL).
+/// \param sock Used only if SERVER_INDIVIDUAL mode is selected.
+/// \param index Used only if SERVER_INDEXED mode is selected.
+/// \param client_vector The vector that contains the clients, should always be supplied even if not used.
+void disconnect_socket(Network_Function_Mode mode, SOCKET* sock, size_t index, Server_Client_Vector* client_vector);
+/// Sends data to a socket (server exclusive).
+/// 
+/// \param mode Specifies whether it scans through the client_vector (SERVER_INDEXED) or uses the provided socket (SERVER_INDIVIDUAL).
+/// \param sock Used only if SERVER_INDIVIDUAL mode is selected.
+/// \param index Used only if SERVER_INDEXED mode is selected.
+/// \param client_vector The vector that contains the clients, should always be supplied even if not used.
+/// \param data_to_send An object that contains the data to send.
+/// \return The number of bytes sent from the send function.
+int send_to_socket(Network_Function_Mode mode, SOCKET* sock, size_t index, Server_Client_Vector* client_vector, Network_TCP_Data_Obj& data_to_send);
 
 #endif

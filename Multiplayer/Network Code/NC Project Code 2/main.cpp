@@ -13,24 +13,27 @@ int main()
     std::getline(std::cin, code);
     if (code == "s")
     {
-        Server server(4);
-        if (!server.initialize("0"))
+        Server server(4, true);
+        server.data_Handler_Func = [&server](const int& i, Network_TCP_Data_Obj& data) {
+        std::cout << server.get_identifier(i) << ": " << data.getString() << std::endl;
+        };
+        if (!server.initialize("0", "Test"))
         {
-            std::cout << "Error: " << server.getLastErrorMsg() << std::endl;
+            std::cout << "Error: " << server.get_last_error_msg() << std::endl;
             return 0;
         }
         std::cout << "Server Open" << std::endl;
         int lol = 0;
-        while (lol < 5)
+        while (lol < 50)
         {
             std::this_thread::sleep_for(std::chrono::seconds(1));
-            std::cout << "Error: " << server.getLastErrorMsg() << std::endl;
+            std::cout << "Error: " << server.get_last_error_msg() << std::endl;
             std::cout << "Size: " << server.getCurrentServerSize() << std::endl;
             lol++;
-            if (lol == 3)
+            if (lol == 10)
             {
                 std::cout << "Sending Message" << std::endl;
-                server.data.info.setMessage("Hello!");
+                server.data.setMessage("Hello!");
                 server.dataReadyToSend();
             }
         }
@@ -40,23 +43,23 @@ int main()
     if (code == "c")
     {
         Client client;
-        if (!client.initialize("0", "0", "kcExpert"))
+        if (!client.initialize("0", "0", "kcExpert", "Test"))
         {
-            std::cout << "Error: " << client.getLastErrorMsg() << std::endl;
+            std::cout << "Error: " << client.get_last_error_msg() << std::endl;
             std::cout << "Connect failed but program good!" << std::endl;
             return 0;
         }
         std::string msg;
         std::cout << "Enter message: ";
         std::getline(std::cin, msg);
-        client.data.info.setMessage(msg);
+        client.data.setMessage(msg);
         client.dataReadyToSend();
         int lol = 0;
         while (lol < 1)
         {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            std::cout << "Error: " << client.getLastErrorMsg() << std::endl;
+            std::cout << "Error: " << client.get_last_error_msg() << std::endl;
             lol++;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
         std::cout << "CLOSING" << std::endl;
         client.close();
