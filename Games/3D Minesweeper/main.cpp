@@ -2,6 +2,8 @@
 #include <time.h>
 #include "src\precomp.h"
 
+#define RAYMATH_IMPLEMENTATION
+
 using namespace rl;
 #define FPS 1000
 
