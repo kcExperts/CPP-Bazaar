@@ -11,6 +11,7 @@
 
 RAYLIB_NAMESPACE_BEGIN
 #include "raylib.h"
+#include "raymath.h"
 RAYLIB_NAMESPACE_END
 
 namespace sst

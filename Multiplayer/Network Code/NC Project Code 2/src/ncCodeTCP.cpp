@@ -2,10 +2,6 @@
 
 std::mutex Network_TCP_Data_Obj_mtx;
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iostream>
-
 namespace { //Utility function
     void Modify_Error(Network_Error_Types type, Network_Error& err)
     {
@@ -53,7 +49,7 @@ bool Network_InitializeWSA()
     return true;
 }
 
-int receive_from_socket(Network_Function_Mode mode, SOCKET* sock ,size_t index, Server_Client_Vector* client_vector, Network_TCP_Data_Obj& data_recv)
+int receive_from_socket_WIN(Network_Function_Mode mode, SOCKET* sock ,size_t index, Server_Client_Vector* client_vector, Network_TCP_Data_Obj& data_recv)
 {
     fd_set data_check;
     struct timeval select_wait;
@@ -74,7 +70,7 @@ int receive_from_socket(Network_Function_Mode mode, SOCKET* sock ,size_t index, 
     return recv(client_vector->socket.at(index).second, (char*)&data_recv, sizeof(data_recv), 0);
 }
 
-void disconnect_socket(Network_Function_Mode mode, SOCKET* sock, size_t index, Server_Client_Vector* client_vector)
+void disconnect_socket_WIN(Network_Function_Mode mode, SOCKET* sock, size_t index, Server_Client_Vector* client_vector)
 {
     if (mode == SERVER_INDIVIDUAL)
     {
@@ -89,7 +85,7 @@ void disconnect_socket(Network_Function_Mode mode, SOCKET* sock, size_t index, S
     }
 }
 
-int send_to_socket(Network_Function_Mode mode, SOCKET* sock, size_t index, Server_Client_Vector* client_vector, Network_TCP_Data_Obj& data_to_send)
+int send_to_socket_WIN(Network_Function_Mode mode, SOCKET* sock, size_t index, Server_Client_Vector* client_vector, Network_TCP_Data_Obj& data_to_send)
 {
     if (mode == SERVER_INDIVIDUAL) return send(*sock, (char*)&data_to_send, sizeof(data_to_send), 0);
     std::unique_lock vec_lock(client_vector->mtx);
@@ -131,52 +127,60 @@ std::string Server::get_identifier(const int& i)
     return client_vector.socket.at(i).first;
 }
 
+Network_Error_Types create_socket_WIN(Socket_WL& sockWL)
+{
+    std::unique_lock socket_lock(sockWL.mtx);
+    sockWL.socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sockWL.socket == INVALID_SOCKET) return Socket_Creation_Failed;
+    return None;
+}
+
+Network_Error_Types bind_socket_WIN(Socket_WL& sockWL, const std::string & port_in, int max_connections)
+{
+    std::string ip;
+    sockaddr_in service; //Contains connection details for the sokcet
+    service.sin_family = AF_INET;
+    if (std::stoi(port_in) == 0) //Optional loopback bind
+    {
+        ip = "127.0.0.1";
+        std::string loopback_port = "55555";
+        InetPtonA(AF_INET, ip.c_str(), &service.sin_addr.S_un);
+        service.sin_port = htons(std::stoi(loopback_port));
+    } else { //Standard bind
+        ip = "0.0.0.0"; //access all ipv4 addresses on local machine
+        InetPtonA(AF_INET, ip.c_str(), &service.sin_addr.S_un);
+        service.sin_port = htons(std::stoi(port_in));
+    }
+    std::unique_lock socket_lock(sockWL.mtx);
+    if (bind(sockWL.socket, (SOCKADDR*)&service, sizeof(service)) == SOCKET_ERROR) return Socket_Bind_Failed;
+    if (listen(sockWL.socket, max_connections) == SOCKET_ERROR) //Put socket in listening state
+    {
+        shutdown(sockWL.socket, SD_BOTH);
+        closesocket(sockWL.socket);
+        return Initialize_Listen_Failed;
+    }
+    //Set socket to non-blocking
+    u_long mode = 1;
+    ioctlsocket(sockWL.socket, FIONBIO, &mode);
+    return None;
+}
+
 bool Server::initialize(const std::string & port_in, const std::string& code)
 {
+    Network_Error_Types information;
     this->code = code;
-    { //Create socket
-        std::unique_lock socket_lock(server.mtx);
-        server.socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (server.socket == INVALID_SOCKET)
-        {
-            Modify_Error(Socket_Creation_Failed, err);
-            return false;
-        }
+    information = create_socket_WIN(server);
+    if (information != None)
+    {
+        Modify_Error(information, err);
+        return false;
     }
     //Bind the socket
+    information = bind_socket_WIN(server, port_in, this->max_connections);
+    if (information != None)
     {
-        std::string ip;
-        sockaddr_in service; //Contains connection details for the sokcet
-        service.sin_family = AF_INET;
-        if (std::stoi(port_in) == 0) //Optional loopback bind
-        {
-            ip = "127.0.0.1";
-            std::string loopback_port = "55555";
-            InetPtonA(AF_INET, ip.c_str(), &service.sin_addr.S_un);
-            service.sin_port = htons(std::stoi(loopback_port));
-        } else { //Standard bind
-            ip = "0.0.0.0"; //access all ipv4 addresses on local machine
-            InetPtonA(AF_INET, ip.c_str(), &service.sin_addr.S_un);
-            service.sin_port = htons(std::stoi(port_in));
-        }
-        {
-            std::unique_lock socket_lock(server.mtx);
-            if (bind(server.socket, (SOCKADDR*)&service, sizeof(service)) == SOCKET_ERROR)
-            {
-                Modify_Error(Socket_Bind_Failed, err);
-                closesocket(server.socket);
-                return false;
-            }
-            if (listen(server.socket, max_connections) == SOCKET_ERROR) //Put socket in listening state
-            {
-                shutdown(server.socket, SD_BOTH);
-                closesocket(server.socket);
-                return false;
-            }
-            //Set socket to non-blocking
-            u_long mode = 1;
-            ioctlsocket(server.socket, FIONBIO, &mode);
-        }
+        Modify_Error(information, err);
+        return false;
     }
     //Open the threads
     canListen = true;
@@ -212,7 +216,7 @@ void Server::listen_and_receive(Socket_WL& server, Server_Client_Vector& client_
                 bool good_client = false;
                 std::string identifier;
                 Network_TCP_Data_Obj temporary_pipeline = Network_TCP_Data_Obj();
-                int bytes_recv = receive_from_socket(SERVER_INDIVIDUAL, &potential_client, 0, NULL, temporary_pipeline);
+                int bytes_recv = receive_from_socket_WIN(SERVER_INDIVIDUAL, &potential_client, 0, NULL, temporary_pipeline);
                 std::string message = temporary_pipeline.getString();
                 size_t separator_pos = message.find(NETWORK_CODE_SEPARATOR);
                 if (separator_pos != std::string::npos)
@@ -222,16 +226,16 @@ void Server::listen_and_receive(Socket_WL& server, Server_Client_Vector& client_
                     if (code != this->code)
                     {
                         temporary_pipeline.setMessage("Connection Request Rejected: Invalid Code");
-                        send_to_socket(SERVER_INDIVIDUAL, &potential_client, 0, NULL, temporary_pipeline);
-                        disconnect_socket(SERVER_INDIVIDUAL, &potential_client, 0, NULL);
+                        send_to_socket_WIN(SERVER_INDIVIDUAL, &potential_client, 0, NULL, temporary_pipeline);
+                        disconnect_socket_WIN(SERVER_INDIVIDUAL, &potential_client, 0, NULL);
                     } else if (identifier.find(NETWORK_CODE_SEPARATOR) != std::string::npos || identifier.length() > NETWORK_MAX_IDENTIFIER_STRING_SIZE || identifier.length() == 0)
                     {
                         temporary_pipeline.setMessage("Connection Request Rejected: Invalid Identifier");
-                        send_to_socket(SERVER_INDIVIDUAL, &potential_client, 0, NULL, temporary_pipeline);
-                        disconnect_socket(SERVER_INDIVIDUAL, &potential_client, 0, NULL);
+                        send_to_socket_WIN(SERVER_INDIVIDUAL, &potential_client, 0, NULL, temporary_pipeline);
+                        disconnect_socket_WIN(SERVER_INDIVIDUAL, &potential_client, 0, NULL);
                     } else {
                         temporary_pipeline.setMessage(NETWORK_CODE_GOOD);
-                        int bytes = send_to_socket(SERVER_INDIVIDUAL, &potential_client, 0, NULL, temporary_pipeline); 
+                        int bytes = send_to_socket_WIN(SERVER_INDIVIDUAL, &potential_client, 0, NULL, temporary_pipeline); 
                         good_client = true;
                     }
                 }
@@ -251,11 +255,11 @@ void Server::listen_and_receive(Socket_WL& server, Server_Client_Vector& client_
         //Check for a message to be received
         for (size_t i = 0; i < client_vector_size; i++)
         {
-            int bytes_recv = receive_from_socket(SERVER_INDEXED, NULL, i, &client_vector, data_Received);
+            int bytes_recv = receive_from_socket_WIN(SERVER_INDEXED, NULL, i, &client_vector, data_Received);
             if (bytes_recv == 0) //Client disconnected
             {
                 client_disconnected(i);
-                disconnect_socket(SERVER_INDEXED, NULL, i, &client_vector);
+                disconnect_socket_WIN(SERVER_INDEXED, NULL, i, &client_vector);
                 i--;
                 client_vector_size--;
             } else if (bytes_recv == SOCKET_ERROR)
@@ -264,7 +268,7 @@ void Server::listen_and_receive(Socket_WL& server, Server_Client_Vector& client_
                 client_connection_error(i);
                 if (SREO_flag)
                 {
-                    disconnect_socket(SERVER_INDEXED, NULL, i, &client_vector);
+                    disconnect_socket_WIN(SERVER_INDEXED, NULL, i, &client_vector);
                     i--;
                     client_vector_size--;
                 }
@@ -274,7 +278,7 @@ void Server::listen_and_receive(Socket_WL& server, Server_Client_Vector& client_
                 {
                     if (k != i)
                     {
-                        int bytes_sent = send_to_socket(SERVER_INDEXED, NULL, k, &client_vector, data_Received);
+                        int bytes_sent = send_to_socket_WIN(SERVER_INDEXED, NULL, k, &client_vector, data_Received);
                         if (bytes_sent == SOCKET_ERROR || bytes_sent == 0) {broadcast_to_client_error(k);}
                     }
                 }
@@ -299,7 +303,7 @@ void Server::send_to_clients(Server_Client_Vector& client_vector, Network_TCP_Da
         }
         for (size_t i = 0; i < client_vec_size; i++)
         {
-            int bytes_sent = send_to_socket(SERVER_INDEXED, NULL, i, &client_vector, data_to_send);
+            int bytes_sent = send_to_socket_WIN(SERVER_INDEXED, NULL, i, &client_vector, data_to_send);
             if (bytes_sent == SOCKET_ERROR || bytes_sent == 0) {broadcast_to_client_error(i);}
         }
     }
