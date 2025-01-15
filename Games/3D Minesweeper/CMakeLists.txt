@@ -11,7 +11,7 @@ SET(PRECOMPILE
 )
 
 SET(HEADERS
-    
+    src/winsock_wrapper.h
 )
 
 SET(CODEFILES

@@ -1,15 +1,16 @@
 #include <iostream>
 #include <time.h>
 #include "src\precomp.h"
+#include "src\winsock_wrapper.h"
 
 #define RAYMATH_IMPLEMENTATION
 
-using namespace rl;
+
 #define FPS 1000
 
 int main()
 {
-    rl::InitWindow(sst::baseX, sst::baseY, "3D exm");
+    InitWindow(sst::baseX, sst::baseY, "3D exm");
     clock_t time = 0, ref = 0;
 
     //BASIC CAMERA REQUIREMENTS
@@ -55,7 +56,7 @@ int main()
         //TRANSFORMING THE MODEL
             //model_cylinder.transform;
 
-        rl::BeginDrawing();
+        BeginDrawing();
             ClearBackground(RAYWHITE);
 
             //3d
