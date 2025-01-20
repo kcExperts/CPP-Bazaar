@@ -62,7 +62,7 @@ int main()
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
             std::cout << "CLOSING" << std::endl;
-            client.close();
+            client.c_close();
         }
         std::cout << "Program Successful" << std::endl;
         return 0;

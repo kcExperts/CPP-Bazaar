@@ -3,12 +3,48 @@
 namespace { //Utility function
     void Modify_Error(Network_Error_Types type, Network_Error& err)
     {
-        std::unique_lock lock(err.mtx);
+        std::unique_lock<std::mutex> lock(err.mtx);
         err.type = type;
     }
 }
 
 Network_Error error_codes;
+
+void Server::data_ready_to_send()
+{
+    std::unique_lock<std::mutex> lock(data_mtx);
+    data_cv.notify_all();    
+}
+
+size_t Server::get_current_server_size()
+{
+    std::unique_lock<std::mutex> vec_lock(client_vector.mtx);
+    return client_vector.size;
+}
+
+std::string Server::get_identifier(const int& i)
+{
+    std::unique_lock<std::mutex> vec_lock(client_vector.mtx);
+    return client_vector.socket.at(i).first;
+}
+
+bool Server::set_data_to_send(const std::string& data_in, int data_type)
+{
+    data.setType(data_type);
+    return data.setMessage(data_in);
+}
+
+void Client::data_ready_to_send()
+{
+    std::unique_lock<std::mutex> lock(data_mtx);
+    data_cv.notify_all();
+}
+
+bool Client::set_data_to_send(const std::string& data_in, int data_type)
+{
+    data.setType(data_type);
+    return data.setMessage(data_in);
+}
 
 #if defined(_WIN32)
 
@@ -43,30 +79,6 @@ Network_Error error_codes;
             Modify_Error(Standard_Broadcast_Error_Occured, error_codes);
         };
         Modify_Error(None, error_codes);
-    }
-
-    void Server::data_ready_to_send()
-    {
-        std::unique_lock lock(data_mtx);
-        data_cv.notify_all();    
-    }
-
-    size_t Server::get_current_server_size()
-    {
-        std::unique_lock vec_lock(client_vector.mtx);
-        return client_vector.size;
-    }
-
-    std::string Server::get_identifier(const int& i)
-    {
-        std::unique_lock vec_lock(client_vector.mtx);
-        return client_vector.socket.at(i).first;
-    }
-
-    bool Server::set_data_to_send(const std::string& data_in, int data_type)
-    {
-        data.setType(data_type);
-        return data.setMessage(data_in);
     }
 
 
@@ -111,7 +123,7 @@ Network_Error error_codes;
         {
             if (toClose) break;
             {
-                std::unique_lock vector_lock(client_vector.mtx);
+                std::unique_lock<std::mutex> vector_lock(client_vector.mtx);
                 client_vector_size = client_vector.size;
             }
             if (client_vector_size == max_connections) {canListen = false;} //Halt listening if server  is full
@@ -121,7 +133,7 @@ Network_Error error_codes;
             {
                 SOCKET potential_client;
                 {
-                    std::unique_lock socket_lock(server.mtx);
+                    std::unique_lock<std::mutex> socket_lock(server.mtx);
                     potential_client = accept(server.socket, NULL, NULL);
                 }
                 if (potential_client != INVALID_SOCKET) 
@@ -157,7 +169,7 @@ Network_Error error_codes;
                         u_long mode = 1;
                         ioctlsocket(potential_client, FIONBIO, &mode); //Set new client to non-blocking   
                         {
-                            std::unique_lock vector_lock(client_vector.mtx);
+                            std::unique_lock<std::mutex> vector_lock(client_vector.mtx);
                             client_vector.socket.push_back(std::pair(identifier, potential_client)); //Change to accomodate for username
                             client_vector.size++;
                         }
@@ -206,12 +218,12 @@ Network_Error error_codes;
         while(1)
         {
             {
-                std::unique_lock wait_lock(data_mtx);
+                std::unique_lock<std::mutex> wait_lock(data_mtx);
                 data_cv.wait(wait_lock);
             }
             if (toClose) break;
             {
-                std::unique_lock vec_lock(client_vector.mtx);
+                std::unique_lock<std::mutex> vec_lock(client_vector.mtx);
                 client_vec_size = client_vector.size;
             }
             for (size_t i = 0; i < client_vec_size; i++)
@@ -288,7 +300,7 @@ Network_Error error_codes;
         int bytes_sent;
         receive_thread = std::thread(receive, this, INITIALIZE, std::ref(client));
         {
-            std::unique_lock socket_lock(client.mtx);
+            std::unique_lock<std::mutex> socket_lock(client.mtx);
             bytes_sent = send(client.socket, (char*)&code_and_identifier, sizeof(code_and_identifier), 0);
             if (bytes_sent == SOCKET_ERROR)
             {
@@ -305,19 +317,7 @@ Network_Error error_codes;
         return true;
     }
 
-    void Client::data_ready_to_send()
-    {
-        std::unique_lock lock(data_mtx);
-        data_cv.notify_all();
-    }
-
-    bool Client::set_data_to_send(const std::string& data_in, int data_type)
-    {
-        data.setType(data_type);
-        return data.setMessage(data_in);
-    }
-
-    void Client::close()
+    void Client::c_close()
     {
         isConnected = false;
         data_ready_to_send();
@@ -347,7 +347,7 @@ Network_Error error_codes;
             }
             //Select check
             {
-                std::unique_lock socket_lock(client.mtx);
+                std::unique_lock<std::mutex> socket_lock(client.mtx);
                 FD_SET(client.socket, &data_check);
                 check = select(0, &data_check, NULL, NULL, &select_wait);
                 FD_ZERO(&data_check);
@@ -355,7 +355,7 @@ Network_Error error_codes;
             if (check > 0)
             {
                 {
-                    std::unique_lock socket_lock(client.mtx);
+                    std::unique_lock<std::mutex> socket_lock(client.mtx);
                     bytes_Received = recv(client.socket, (char*)&data_Received, sizeof(data_Received), 0);
                 }
                 if (bytes_Received == 0)
@@ -366,7 +366,7 @@ Network_Error error_codes;
                 } else if (bytes_Received == SOCKET_ERROR)
                 {
                     {
-                        std::unique_lock wsa_lock(wsa_mtx);
+                        std::unique_lock<std::mutex> wsa_lock(wsa_mtx);
                         wsa_error = WSAGetLastError();
                     }
                     if (wsa_error != WSAEWOULDBLOCK && wsa_error != 0 && wsa_error != WSAECONNRESET) {Modify_Error(Receive_Error_Occured,  error_codes);}
@@ -398,18 +398,18 @@ Network_Error error_codes;
         {
             int bytes_sent, wsa_error;
             {
-                std::unique_lock wait_lock(data_mtx);
+                std::unique_lock<std::mutex> wait_lock(data_mtx);
                 data_cv.wait(wait_lock);
             }
             if (!isConnected) break;
             {
-                std::unique_lock socket_lock(client.mtx);
+                std::unique_lock<std::mutex> socket_lock(client.mtx);
                 bytes_sent = send(client.socket, (char*)&data_to_send, sizeof(data_to_send), 0);
             }
             if (bytes_sent == SOCKET_ERROR)
             {
                 {
-                    std::unique_lock wsa_lock(wsa_mtx);
+                    std::unique_lock<std::mutex> wsa_lock(wsa_mtx);
                     wsa_error = WSAGetLastError();
                 }
                 if (wsa_error)
@@ -439,7 +439,7 @@ Network_Error error_codes;
 
     Network_Error_Types create_socket(Socket_WL& sock)
     {
-        std::unique_lock socket_lock(sock.mtx);
+        std::unique_lock<std::mutex> socket_lock(sock.mtx);
         sock.socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (sock.socket == INVALID_SOCKET) return Socket_Creation_Failed;
         return None;
@@ -461,7 +461,7 @@ Network_Error error_codes;
             InetPtonA(AF_INET, ip.c_str(), &service.sin_addr.S_un);
             service.sin_port = htons(std::stoi(port_in));
         }
-        std::unique_lock socket_lock(sock.mtx);
+        std::unique_lock<std::mutex> socket_lock(sock.mtx);
         if (bind(sock.socket, (SOCKADDR*)&service, sizeof(service)) == SOCKET_ERROR) return Socket_Bind_Failed;
         if (listen(sock.socket, max_connections) == SOCKET_ERROR) //Put socket in listening state
         {
@@ -489,7 +489,7 @@ Network_Error error_codes;
             //do checks for select_output
             return recv(*sock, (char*)&data_recv, sizeof(data_recv), 0);
         } 
-        std::unique_lock vector_lock(client_vector->mtx);
+        std::unique_lock<std::mutex> vector_lock(client_vector->mtx);
         FD_SET(client_vector->socket.at(index).second, &data_check);
         int select_output = select(0, &data_check, NULL, NULL, &select_wait);
         //do checks for select_output
@@ -503,7 +503,7 @@ Network_Error error_codes;
             shutdown(*sock, SD_BOTH);
             closesocket(*sock);
         } else {
-            std::unique_lock vec_lock(client_vector->mtx);
+            std::unique_lock<std::mutex> vec_lock(client_vector->mtx);
             shutdown(client_vector->socket.at(index).second, SD_BOTH);
             closesocket(client_vector->socket.at(index).second);
             client_vector->socket.erase(client_vector->socket.begin() + index);
@@ -514,7 +514,7 @@ Network_Error error_codes;
     int send_to_socket(Network_Function_Mode mode, SOCKET* sock, size_t index, Server_Client_Vector* client_vector, Network_TCP_Data_Obj& data_to_send)
     {
         if (mode == SERVER_INDIVIDUAL) return send(*sock, (char*)&data_to_send, sizeof(data_to_send), 0);
-        std::unique_lock vec_lock(client_vector->mtx);
+        std::unique_lock<std::mutex> vec_lock(client_vector->mtx);
         return send(client_vector->socket.at(index).second, (char*)&data_to_send, sizeof(data_to_send), 0);
     }
 
@@ -526,7 +526,7 @@ Network_Error error_codes;
 Network_Error_Types get_last_error_msg(Network_Error& error)
 {
     if (error.type == None) return No_New_Error;
-    std::unique_lock lock(error.mtx);
+    std::unique_lock<std::mutex> lock(error.mtx);
     Network_Error_Types temp = error.type;
     error.type = None;
     return temp;
@@ -543,13 +543,13 @@ Network_TCP_Data_Obj::Network_TCP_Data_Obj()
 
 std::string Network_TCP_Data_Obj::getString() const
 {
-    std::lock_guard lock(Network_TCP_Data_Obj_mtx);
+    std::lock_guard<std::mutex> lock(Network_TCP_Data_Obj_mtx);
     return array;
 }
 
 int Network_TCP_Data_Obj::getType() const
 {
-    std::lock_guard lock(Network_TCP_Data_Obj_mtx);
+    std::lock_guard<std::mutex> lock(Network_TCP_Data_Obj_mtx);
     return type;
 }
 
